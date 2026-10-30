@@ -2,7 +2,7 @@
 
 A webcam air harp: pluck particle strings on screen with your hands to make music — one hand plays, the other hand bends the harmony between major and minor. Chord mode included.
 
-Open `index.html` in a browser (Chrome works best), allow camera access, and play. No build step, no server, nothing to install. Hand tracking runs in your browser on your own machine; video is not sent anywhere.
+**Play it live: [caitriaoneill.com/air-harp](https://caitriaoneill.com/air-harp/)** — or open `index.html` in a browser (Chrome works best), allow camera access, and play. No build step, no server, nothing to install. Hand tracking runs in your browser on your own machine; video is not sent anywhere.
 
 ## Screenshots
 
