@@ -1,0 +1,1357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Air Piano</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #edf0f2;
+        --panel: #ffffff;
+        --ink: #131720;
+        --ink-soft: #4a5262;
+        --line: #d3d9df;
+        --stage-edge: #232c3d;
+        --accent: #b97a16;
+        --accent-ink: #8a5c08;
+        --chip-bg: #e4e9ed;
+        --btn-bg: #ffffff;
+        --btn-ink: #131720;
+        --btn-on-bg: #131720;
+        --btn-on-ink: #f5f2ea;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0c10;
+          --panel: #12151c;
+          --ink: #ece9e2;
+          --ink-soft: #9aa3b2;
+          --line: #262c38;
+          --stage-edge: #39445c;
+          --accent: #e8a33d;
+          --accent-ink: #e8a33d;
+          --chip-bg: #1b2029;
+          --btn-bg: #171b23;
+          --btn-ink: #ece9e2;
+          --btn-on-bg: #e8a33d;
+          --btn-on-ink: #171106;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 18px 40px; }
+
+      header.top {
+        display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 22px;
+        margin-bottom: 14px;
+      }
+      header.top h1 {
+        font-size: clamp(30px, 4.6vw, 44px); line-height: 1.02; margin: 0;
+        font-weight: 800; letter-spacing: -0.015em;
+      }
+      header.top p.tag {
+        margin: 0 0 4px; color: var(--ink-soft); font-size: 15px; max-width: 54ch;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; padding-bottom: 2px; }
+      .chip {
+        font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+        background: var(--chip-bg); border: 1px solid var(--line); border-radius: 999px;
+        padding: 5px 11px; white-space: nowrap;
+      }
+      .chip b { font-weight: 600; }
+      .chip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa3b2; margin-right: 6px; vertical-align: 1px; }
+      .chip .dot.on { background: #22c07a; }
+      .chip .dot.warn { background: #e8a33d; }
+
+      .stage-shell {
+        position: relative; border-radius: 18px; overflow: hidden;
+        border: 1px solid var(--stage-edge);
+        background: #0b0f16;
+        box-shadow: 0 18px 50px rgba(5, 10, 20, 0.35);
+      }
+      canvas#stage { display: block; width: 100%; height: min(68vh, 620px); min-height: 360px; touch-action: none; cursor: crosshair; }
+      @media (max-width: 640px) { canvas#stage { height: 60vh; min-height: 320px; } }
+      video#cam-src {
+        position: absolute; width: 2px; height: 2px; opacity: 0; pointer-events: none; left: 0; top: 0;
+      }
+
+      /* On-stage mode buttons (top): pinch targets for the hands,
+         ordinary buttons for mouse / touch / keyboard. */
+      .stage-btns {
+        position: absolute; top: 10px; left: 0; right: 0;
+        display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+        padding: 0 10px; pointer-events: none;
+      }
+      .sbtn {
+        position: relative; overflow: hidden; pointer-events: auto;
+        font: inherit; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600;
+        background: rgba(10, 14, 22, 0.78); color: #dfe5ee;
+        border: 1px solid rgba(255,255,255,.28); border-radius: 999px;
+        padding: 8px 14px; cursor: pointer; min-height: 38px;
+      }
+      .sbtn .fill {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+        background: rgba(232, 163, 61, 0.55); pointer-events: none;
+      }
+      .sbtn .lbl { position: relative; }
+      .sbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .sbtn.committed { border-color: #e8a33d; color: #ffe9bd; }
+
+      #pedal-indicator {
+        position: absolute; right: 12px; bottom: 94px; display: none; align-items: center; gap: 8px;
+        background: rgba(10, 14, 22, 0.78); border: 1px solid #e8a33d;
+        border-radius: 999px; padding: 7px 13px; color: #ffe9bd; pointer-events: none;
+        font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600;
+      }
+      #pedal-indicator.on { display: flex; }
+      #note-flash {
+        position: absolute; top: 58px; left: 0; right: 0; text-align: center;
+        font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
+        font-size: clamp(24px, 3.6vw, 36px); color: #f3e9d2; pointer-events: none;
+        opacity: 0; text-shadow: 0 2px 10px rgba(0,0,0,.85), 0 0 22px rgba(0,0,0,.5);
+      }
+      .hand-cards {
+        position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; pointer-events: none;
+        max-width: calc(100% - 24px); flex-wrap: wrap;
+      }
+      .hand-card {
+        background: rgba(10, 14, 22, 0.72); border: 1px solid rgba(255,255,255,.16);
+        border-radius: 10px; padding: 7px 10px; color: #dfe5ee; min-width: 128px;
+      }
+      .hand-card .hc-role { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #93a1b5; }
+      .hand-card .hc-state { font-size: 14.5px; font-weight: 600; margin-top: 1px; }
+      .hand-card .hc-sub { font-size: 12px; color: #aeb9c9; }
+
+      .controls {
+        display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 12px 14px; margin-top: 14px;
+      }
+      .ctl-group { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+      .ctl-label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin-right: 1px; }
+      button, .seg-btn {
+        font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+        background: var(--btn-bg); color: var(--btn-ink);
+        border: 1px solid var(--line); border-radius: 9px; padding: 8px 13px;
+      }
+      button:hover, .seg-btn:hover { border-color: var(--ink-soft); }
+      button:focus-visible, .seg-btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; flex-wrap: wrap; }
+      .seg .seg-btn { border: 0; border-radius: 0; padding: 8px 12px; }
+      .seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+      .seg .seg-btn[aria-pressed="true"] { background: var(--btn-on-bg); color: var(--btn-on-ink); }
+      button[aria-pressed="true"] { background: var(--btn-on-bg); color: var(--btn-on-ink); border-color: var(--btn-on-bg); }
+      button.primary { background: var(--btn-on-bg); color: var(--btn-on-ink); border-color: var(--btn-on-bg); }
+      button.primary[aria-pressed="true"] { background: #b3362b; border-color: #b3362b; color: #fff; }
+      input[type="range"] { accent-color: var(--accent); width: 110px; }
+      .status-line { font-size: 13.5px; color: var(--ink-soft); margin: 10px 2px 0; min-height: 1.3em; }
+      .status-line b { color: var(--ink); }
+
+      .below { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+      @media (max-width: 860px) { .below { grid-template-columns: 1fr; } }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+      .card h2 { font-size: 17px; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.01em; }
+      .card p, .card li { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
+      .card p { margin: 0 0 8px; }
+      .card ul { margin: 0; padding-left: 18px; }
+      .card li { margin-bottom: 5px; }
+      .card b, .card strong { color: var(--ink); }
+      .card a { color: var(--accent-ink); }
+      kbd {
+        font-family: "IBM Plex Mono", monospace; font-size: 12px; background: var(--chip-bg);
+        border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; color: var(--ink);
+      }
+      footer.note { margin-top: 20px; font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+      footer.note a { color: var(--accent-ink); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <h1>Air Piano</h1>
+          <p class="tag">A band of light for keys across the middle of your camera view. Your fingers are tracked everywhere — but nothing sounds until a fingertip taps down into a key.</p>
+        </div>
+        <div class="chips" aria-label="Instrument status">
+          <span class="chip"><span class="dot" id="cam-dot"></span><b id="cam-state">Camera off</b></span>
+          <span class="chip">Range <b id="range-state">C4–C6</b></span>
+          <span class="chip">Sustain <b id="sustain-state">off</b></span>
+          <span class="chip">Last notes <b id="last-note">—</b></span>
+        </div>
+      </header>
+
+      <div class="stage-shell">
+        <canvas id="stage" role="img" aria-label="Air Piano stage: your mirrored webcam picture fills the stage, with a horizontal band of fifteen coloured piano keys across the middle. Fingertips show as guide dots everywhere; tap a fingertip down across a key's strike line to play it."></canvas>
+        <video id="cam-src" playsinline muted aria-hidden="true"></video>
+        <div class="stage-btns" role="group" aria-label="Mode buttons — pinch one with thumb and index finger, or click it">
+          <button class="sbtn" id="sb-oct-down" type="button"><span class="fill"></span><span class="lbl">Octave −</span></button>
+          <button class="sbtn" id="sb-oct-up" type="button"><span class="fill"></span><span class="lbl">Octave +</span></button>
+          <button class="sbtn" id="sb-sound" type="button"><span class="fill"></span><span class="lbl">Sound: Piano</span></button>
+          <button class="sbtn" id="sb-velocity" type="button"><span class="fill"></span><span class="lbl">Velocity: Dynamic</span></button>
+        </div>
+        <div id="note-flash" aria-hidden="true"></div>
+        <div id="pedal-indicator">Sustain pedal ON</div>
+        <div class="hand-cards">
+          <div class="hand-card">
+            <div class="hc-role">Left hand</div>
+            <div class="hc-state" id="left-state">Not seen</div>
+            <div class="hc-sub" id="left-sub">Bring it into the frame</div>
+          </div>
+          <div class="hand-card">
+            <div class="hc-role">Right hand</div>
+            <div class="hc-state" id="right-state">Not seen</div>
+            <div class="hc-sub" id="right-sub">Bring it into the frame</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls" role="group" aria-label="Instrument controls">
+        <div class="ctl-group">
+          <button id="btn-camera" class="primary" aria-pressed="false">Start camera</button>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-oct">Octave</span>
+          <div class="seg" role="group" aria-labelledby="lbl-oct">
+            <button class="seg-btn" id="oct-down" type="button">−</button>
+            <button class="seg-btn" id="oct-up" type="button">+</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-sound">Sound</span>
+          <div class="seg" role="group" aria-labelledby="lbl-sound">
+            <button class="seg-btn" id="sound-piano" aria-pressed="true">Piano</button>
+            <button class="seg-btn" id="sound-glass" aria-pressed="false">Glass</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-vel">Velocity</span>
+          <div class="seg" role="group" aria-labelledby="lbl-vel">
+            <button class="seg-btn" id="vel-dynamic" aria-pressed="true">Dynamic</button>
+            <button class="seg-btn" id="vel-fixed" aria-pressed="false">Fixed</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <button id="btn-sustain" aria-pressed="false">Sustain pedal</button>
+          <button id="btn-panic" type="button">All notes off</button>
+        </div>
+        <div class="ctl-group">
+          <label class="ctl-label" for="vol">Volume</label>
+          <input type="range" id="vol" min="0" max="100" value="80" />
+        </div>
+      </div>
+      <p class="status-line" id="status-line">Press <b>Start camera</b> and allow access — you will see yourself, with the key band across the middle. <b>No camera?</b> Click or tap the keys, or play the two keyboard rows (<kbd>Z</kbd> row = lower octave, <kbd>Q</kbd> row = upper).</p>
+
+      <div class="below">
+        <section class="card">
+          <h2>How to play</h2>
+          <ul>
+            <li><b>Approach silently.</b> Your fingertips show as coloured guide dots <b>everywhere on screen</b>, and a key lights up when a fingertip hovers over it — but moving into position makes <b>no sound</b>. Only the band in the middle can play.</li>
+            <li><b>Tap down to play.</b> Push a fingertip <b>down across the amber strike line</b> inside a key, the way you'd dip a real key. The note sounds and <b>sustains while your fingertip stays down</b>; lift back above the higher release line (or slide off the key) and it stops. Every fingertip of both hands is its own player — chords and two-handed playing work.</li>
+            <li><b>How hard you tap is how loud it plays.</b> Loudness comes from your fingertip's fastest downward speed just before the strike, grouped into <b>soft / medium / hard</b> — the band and value print on the key as it fires. Slow drifts into a key stay silent: a press needs a real tap's speed, not just arrival.</li>
+            <li><b>Modes live above the band.</b> Point your index fingertip at a button along the top and <b>pinch thumb-to-index, holding the pinch about a quarter second</b> — the button fills as the pinch commits. Same buttons work by click, tap, and keyboard focus.</li>
+            <li><b>Below the band:</b> hold a <b>fist</b> still for a moment to toggle the <b>sustain pedal</b>; hold an <b>open palm</b> still to cut <b>all notes off</b>. Poses are only read below the band, never while you're playing.</li>
+            <li><b>Mouse / touch:</b> press on a key to play it — the lower on the key you press, the harder the hit. Drag while pressed to glide across keys. <b>Keyboard:</b> <kbd>Z</kbd>–<kbd>M</kbd> play the lower octave's white keys with <kbd>S</kbd> <kbd>D</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> as its black keys; <kbd>Q</kbd>–<kbd>I</kbd> and <kbd>2</kbd> <kbd>3</kbd> <kbd>5</kbd> <kbd>6</kbd> <kbd>7</kbd> do the same an octave up. Hold <kbd>Shift</kbd> for a hard hit.</li>
+          </ul>
+        </section>
+        <section class="card">
+          <h2>How a press is decided — and the honest limits</h2>
+          <p>The detection recipe is borrowed from the strongest published work, adapted to screen space. A press needs <b>three things at once</b>: the fingertip crosses the key's strike line (~62% down the key), its downward speed <b>peaked above a minimum gate</b> during the approach, and it <b>decelerates as it arrives</b> — the kinematic signature of a deliberate tap. That velocity-gated design (Toshpulatov et al., CVPR 2026) reached <b>94.4% detection with 4.2% false positives</b>, where position alone managed 70.3% with 27.7% false positives. Entry and exit lines differ (<b>hysteresis</b>), and after a press each finger rests through a <b>300&nbsp;ms cooldown</b> before it can fire again — a named constant (<code>PRESS_COOLDOWN_MS</code>) at the top of the script, set toward the low end on purpose because repeated piano notes need it; the contact-detection research used ~450&nbsp;ms.</p>
+          <p><b>Webcam depth is never the deciding signal</b> — a single camera's depth error (12–25&nbsp;mm) is far coarser than the hover-vs-touch gap (&lt;3&nbsp;mm). Everything here is screen-space: position, speed, and the tap's shape. Fingertip positions pass through a <b>One Euro filter</b> so a still hand doesn't jitter across a line.</p>
+          <p><b>Velocity is the honest weak point.</b> No published webcam air piano has a validated velocity→loudness mapping — the one concrete implementation faked it from fingertip position, and its own testers found consistent dynamics hard. So this one ships it <b>coarse</b>: peak approach speed, normalised per finger over a rolling window, in three bands — good for deliberate soft-vs-hard contrasts, not fine gradation. <b>Fixed velocity mode</b> (top button) turns it off entirely for an even, constant loudness.</p>
+        </section>
+        <section class="card">
+          <h2>Where the design comes from</h2>
+          <ul>
+            <li><b>The band itself</b> — track everywhere, arm notes only in a zone: Leap's hover/touch zones, the WPI contactless-MIDI capstone's activation region, and the Stanford AR Piano's texture-space gating all do this split. Fifteen white keys is the evidenced sweet spot — wider keys beat more keys.</li>
+            <li><b>Per-finger polyphony</b> — each fingertip evaluated independently against the key geometry, with its own active-note state (the WPI build's architecture). Black keys take priority where a fingertip overlaps both, as on a real piano.</li>
+            <li><b>Guide dots + hover light</b> — Stanford drew coloured circles for every fingertip so players see where they'd land; hover feedback distinct from press feedback measurably cut errors in mid-air selection studies.</li>
+            <li><b>Colour keys</b> — one colour per pitch class (the Chroma-Notes convention used in music teaching; ROLI's light-up keys do the same on hardware), with brightness carrying state: dim at rest, brighter on hover, full flare when sounding. The piano's black-key grouping stays, because every precedent that kept it played better.</li>
+            <li><b>Pinch-to-commit controls</b> — the Quest / visionOS pattern: fingertip points, pinch commits, with a ~250&nbsp;ms dwell and cooldowns against accidents. <a href="https://github.com/Lameda12/vivomusicano">Vivomusicano</a> runs the same hands-for-modes split in the browser on this exact stack.</li>
+          </ul>
+          <p>Sources: <a href="https://openaccess.thecvf.com/content/CVPR2026/papers/Toshpulatov_Real-Time_Multimodal_Fingertip_Contact_Detection_via_Depth_and_Motion_Fusion_CVPR_2026_paper.pdf">Toshpulatov et al., CVPR 2026</a> · <a href="https://misoshiruseijin.github.io/documents/ar_piano.pdf">Stanford AR Piano</a> · <a href="https://digital.wpi.edu/downloads/qf85ng82s?locale=fr">WPI Contactless MIDI Instrument</a> · <a href="https://eowynren.github.io/files/mid-air-gestures.pdf">Dube et al., mid-air selection</a></p>
+        </section>
+      </div>
+
+      <footer class="note">
+        Air Piano v1 — the third instrument in the gesture-music series, after Air Harp variations 1 and 2. It is designed to live as the <b>air-piano</b> sibling of the harp builds: same mirrored camera stage, same rule learned from the harp — <i>selecting is silent; only a deliberate action plays</i> — applied spatially, as a band you must reach and tap into. Expect the known limits: ring finger and pinky are the least accurately tracked fingers, hands crossing can swap labels, and slow chord playing will feel better than fast runs. Video is processed locally in this page; nothing is recorded or sent anywhere.
+      </footer>
+    </div>
+
+    <script>
+    "use strict";
+    /* ============================================================
+       Air Piano v1.
+       Stage = mirrored webcam view (cover-fit; landmarks mapped
+       through the SAME transform). One horizontal band of 15 white
+       keys (C4–C6 + octave shift) across the middle is the only
+       place notes can sound. Fingertips are tracked everywhere and
+       drawn as guide dots; a note fires only on a velocity-gated
+       downward tap across a key's strike line.
+       Tracking: MediaPipe Hands (21 landmarks). Sound: raw Web Audio.
+       ============================================================ */
+
+    /* ---- Tunables (named constants, per the research recipe) ---- */
+    var PRESS_COOLDOWN_MS = 300;   /* per-finger lockout after a press. Research contact detection used ~450 ms; repeated piano notes need the low end — adjust here. */
+    var STRIKE_FRAC = 0.62;        /* strike line: this far down a key's height */
+    var RELEASE_FRAC = 0.42;       /* release line: higher than the strike line (hysteresis) */
+    var VELOCITY_GATE_H = 0.30;    /* min peak downward speed during approach, in stage-heights / second */
+    var PINCH_DWELL_MS = 250;      /* pinch hold on a top button before it commits */
+    var FIST_HOLD_MS = 400;        /* fist held below the band -> sustain pedal toggle */
+    var PALM_HOLD_MS = 600;        /* open palm held still below the band -> all notes off */
+    var PINCH_RATIO = 0.32;        /* thumb-index distance / hand size below this = pinching */
+    var FIXED_VELOCITY = 0.7;      /* loudness used in Fixed velocity mode */
+
+    var NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    /* One colour per pitch class (Chroma-Notes convention), as hues. */
+    var PC_HUE = [4, 22, 34, 46, 54, 128, 158, 178, 198, 222, 252, 282];
+    var WHITE_STEPS = [0, 2, 4, 5, 7, 9, 11];       /* white-key semitone offsets in an octave */
+    var BLACK_AFTER = { 0: true, 1: true, 3: true, 4: true, 5: true }; /* white index-in-octave followed by a black key */
+    var FINGERTIPS = [4, 8, 12, 16, 20];
+    var FINGER_NAMES = ["thumb", "index", "middle", "ring", "pinky"];
+
+    var state = {
+      sound: "piano",          /* "piano" | "glass" */
+      velocityMode: "dynamic", /* "dynamic" | "fixed" */
+      octaveShift: 0,          /* -1..+1, applied to the C4 base */
+      sustainPedal: false,
+      cameraOn: false,
+      volume: 0.8
+    };
+
+    function baseMidi() { return 60 + state.octaveShift * 12; } /* C4 */
+    function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
+    function midiFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+    /* ---------------- Audio ---------------- */
+    var actx = null, masterGain = null, filterNode = null;
+
+    function ensureAudio() {
+      if (actx) { if (actx.state === "suspended") actx.resume(); return true; }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      actx = new AC({ latencyHint: "interactive" });
+      var comp = actx.createDynamicsCompressor();
+      comp.threshold.value = -18; comp.ratio.value = 6;
+      comp.connect(actx.destination);
+      masterGain = actx.createGain();
+      masterGain.gain.value = state.volume;
+      masterGain.connect(comp);
+      filterNode = actx.createBiquadFilter();
+      filterNode.type = "lowpass"; filterNode.frequency.value = 9000; filterNode.Q.value = 0.3;
+      filterNode.connect(masterGain);
+      var conv = actx.createConvolver();
+      conv.buffer = makeImpulse(1.6, 2.6);
+      var wet = actx.createGain(); wet.gain.value = 0.22;
+      filterNode.connect(conv); conv.connect(wet); wet.connect(masterGain);
+      return true;
+    }
+    function makeImpulse(seconds, decayPow) {
+      var sr = actx.sampleRate, len = Math.floor(sr * seconds);
+      var buf = actx.createBuffer(2, len, sr);
+      for (var ch = 0; ch < 2; ch++) {
+        var d = buf.getChannelData(ch);
+        for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decayPow);
+      }
+      return buf;
+    }
+
+    /* Voices are keyed by the thing holding the note down (a fingertip,
+       a pointer, a keyboard key) so each holder releases its own note. */
+    var voices = {}; /* holderKey -> voice */
+    var voiceSeq = 0;
+
+    function makeVoice(midi, velocity) {
+      var t = actx.currentTime;
+      var f = midiFreq(midi);
+      var out = actx.createGain();
+      var oscs = [];
+      var stopAt;
+      if (state.sound === "glass") {
+        var flt = actx.createBiquadFilter();
+        flt.type = "lowpass"; flt.frequency.value = 3000 + velocity * 5000;
+        flt.connect(out); out.connect(filterNode);
+        var dur = 2.6;
+        var peak = 0.10 + velocity * 0.34;
+        out.gain.setValueAtTime(0.0001, t);
+        out.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+        out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        var partials = [[1, 1], [3.01, 0.28], [5.42, 0.07]];
+        for (var i = 0; i < partials.length; i++) {
+          var o = actx.createOscillator();
+          o.type = "sine"; o.frequency.value = f * partials[i][0];
+          var og = actx.createGain(); og.gain.value = partials[i][1];
+          o.connect(og); og.connect(flt);
+          o.start(t); o.stop(t + dur + 0.05);
+          oscs.push(o);
+        }
+        stopAt = t + dur;
+      } else {
+        /* Piano-like: harmonic stack, brightness scales with velocity,
+           natural decay longer for low notes. */
+        var flt2 = actx.createBiquadFilter();
+        flt2.type = "lowpass";
+        flt2.frequency.value = Math.min(12000, 650 + velocity * velocity * 6200 + f * 1.6);
+        flt2.Q.value = 0.4;
+        flt2.connect(out); out.connect(filterNode);
+        var decay = Math.max(1.7, Math.min(3.6, 2.1 + (72 - midi) * 0.028));
+        var pk = 0.14 + velocity * 0.42;
+        out.gain.setValueAtTime(0.0001, t);
+        out.gain.exponentialRampToValueAtTime(pk, t + 0.006);
+        out.gain.exponentialRampToValueAtTime(Math.max(0.0011, pk * 0.30), t + 0.30);
+        out.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+        var amps = [1, 0.55, 0.30, 0.15, 0.075, 0.038];
+        for (var j = 0; j < amps.length; j++) {
+          var oj = actx.createOscillator();
+          oj.type = j === 0 ? "triangle" : "sine";
+          oj.frequency.value = f * (j + 1);
+          var ogj = actx.createGain(); ogj.gain.value = amps[j];
+          oj.connect(ogj); ogj.connect(flt2);
+          oj.start(t); oj.stop(t + decay + 0.05);
+          oscs.push(oj);
+        }
+        stopAt = t + decay;
+      }
+      return { midi: midi, gain: out, oscs: oscs, stopAt: stopAt, pedalHeld: false, born: ++voiceSeq };
+    }
+
+    function killVoice(v, fast) {
+      if (!v) return;
+      var t = actx.currentTime;
+      try {
+        v.gain.gain.cancelScheduledValues(t);
+        v.gain.gain.setTargetAtTime(0.0001, t, fast ? 0.03 : 0.07);
+        for (var i = 0; i < v.oscs.length; i++) { try { v.oscs[i].stop(t + 0.35); } catch (e) {} }
+      } catch (e) {}
+    }
+
+    function noteOn(holderKey, midi, velocity) {
+      if (!ensureAudio()) return;
+      noteOff(holderKey, true); /* retrigger cleanly */
+      /* gentle voice cap: release the oldest sounding voice */
+      var keys = Object.keys(voices);
+      if (keys.length >= 26) {
+        var oldest = keys[0];
+        for (var i = 1; i < keys.length; i++) if (voices[keys[i]].born < voices[oldest].born) oldest = keys[i];
+        killVoice(voices[oldest], true); delete voices[oldest];
+      }
+      voices[holderKey] = makeVoice(midi, velocity);
+      onNoteSounded(midi, velocity);
+    }
+    function noteOff(holderKey, immediate) {
+      var v = voices[holderKey];
+      if (!v) return;
+      delete voices[holderKey];
+      if (state.sustainPedal && !immediate) { v.pedalHeld = true; pedalVoices.push(v); return; }
+      killVoice(v, false);
+    }
+    var pedalVoices = [];
+    function releasePedalVoices() {
+      for (var i = 0; i < pedalVoices.length; i++) killVoice(pedalVoices[i], false);
+      pedalVoices = [];
+    }
+    function allNotesOff() {
+      for (var k in voices) killVoice(voices[k], true);
+      voices = {};
+      releasePedalVoices();
+      for (var fk in fingers) { fingers[fk].pressedKey = null; }
+      refreshKeyStates();
+    }
+
+    /* ---------------- Stage & key geometry ---------------- */
+    var canvas = document.getElementById("stage");
+    var ctx = canvas.getContext("2d");
+    var videoEl = document.getElementById("cam-src");
+    var stageW = 0, stageH = 0, dpr = 1;
+    var whites = [], blacks = [], allKeys = [];
+
+    function videoGeom() {
+      var vw = videoEl.videoWidth || 640, vh = videoEl.videoHeight || 480;
+      var scale = Math.max(stageW / vw, stageH / vh);
+      return { vw: vw, vh: vh, scale: scale, dx: (stageW - vw * scale) / 2, dy: (stageH - vh * scale) / 2 };
+    }
+    /* normalized landmark -> canvas point, mirrored, cover-fit (same
+       transform the video is drawn with, so seen hand = tracked hand) */
+    function stagePoint(lm) {
+      var g = videoGeom();
+      return { x: stageW - (g.dx + lm.x * g.vw * g.scale), y: g.dy + lm.y * g.vh * g.scale };
+    }
+
+    function bandTop() { return stageH * 0.335; }
+    function bandHeight() { return stageH * 0.33; }
+
+    function buildKeys() {
+      whites = []; blacks = []; allKeys = [];
+      var base = baseMidi();
+      for (var i = 0; i < 15; i++) {
+        var midi = base + Math.floor(i / 7) * 12 + WHITE_STEPS[i % 7];
+        whites.push({ kind: "white", idx: i, midi: midi, pc: midi % 12, x: 0, y: 0, w: 0, h: 0, hover: 0, flare: 0, flashText: "", flashAt: 0 });
+      }
+      for (var j = 0; j < 14; j++) {
+        if (!BLACK_AFTER[j % 7]) continue;
+        var bm = whites[j].midi + 1;
+        blacks.push({ kind: "black", idx: j, midi: bm, pc: bm % 12, x: 0, y: 0, w: 0, h: 0, hover: 0, flare: 0, flashText: "", flashAt: 0 });
+      }
+      allKeys = whites.concat(blacks);
+      layoutKeys();
+    }
+    function layoutKeys() {
+      if (!stageW) return;
+      var margin = stageW * 0.04;
+      var bw = stageW - margin * 2;
+      var kw = bw / 15;
+      var top = bandTop(), bh = bandHeight();
+      for (var i = 0; i < whites.length; i++) {
+        var w = whites[i];
+        w.x = margin + i * kw; w.y = top; w.w = kw; w.h = bh;
+      }
+      for (var j = 0; j < blacks.length; j++) {
+        var b = blacks[j];
+        b.w = kw * 0.6; b.h = bh * 0.60;
+        b.x = margin + (b.idx + 1) * kw - b.w / 2; b.y = top;
+      }
+    }
+    function strikeY(key) { return key.y + key.h * STRIKE_FRAC; }
+    function releaseY(key) { return key.y + key.h * RELEASE_FRAC; }
+    /* Black keys win where a point is over both (real piano geometry). */
+    function keyAt(x, y) {
+      var i, k;
+      for (i = 0; i < blacks.length; i++) {
+        k = blacks[i];
+        if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) return k;
+      }
+      for (i = 0; i < whites.length; i++) {
+        k = whites[i];
+        if (x >= k.x && x <= k.x + k.w && y >= k.y && y <= k.y + k.h) return k;
+      }
+      return null;
+    }
+    /* For hover: the key a fingertip is over or heading for, even when
+       it is still above the band. */
+    function keyColumnAt(x) {
+      var margin = stageW * 0.04, bw = stageW - margin * 2, kw = bw / 15;
+      if (x < margin || x > margin + bw) return null;
+      var wi = Math.floor((x - margin) / kw);
+      for (var i = 0; i < blacks.length; i++) {
+        var b = blacks[i];
+        if (x >= b.x && x <= b.x + b.w) return b;
+      }
+      return whites[wi] || null;
+    }
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      stageW = Math.max(300, rect.width); stageH = Math.max(260, rect.height);
+      canvas.width = Math.round(stageW * dpr); canvas.height = Math.round(stageH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      layoutKeys();
+    }
+    window.addEventListener("resize", resize);
+
+    /* ---------------- One Euro filter (jitter killer) ---------------- */
+    function LowPass() { this.y = null; }
+    LowPass.prototype.filter = function (x, alpha) {
+      if (this.y === null) { this.y = x; return x; }
+      this.y = alpha * x + (1 - alpha) * this.y;
+      return this.y;
+    };
+    function oeAlpha(cutoff, dt) { var tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+    function OneEuro(minCutoff, beta, dCutoff) {
+      this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff;
+      this.xF = new LowPass(); this.dxF = new LowPass(); this.lastT = 0; this.lastX = null;
+    }
+    OneEuro.prototype.filter = function (x, t) {
+      if (this.lastX === null) { this.lastX = x; this.lastT = t; return this.xF.filter(x, 1); }
+      var dt = Math.max(0.008, Math.min(0.1, (t - this.lastT) / 1000));
+      this.lastT = t;
+      var dx = (x - this.lastX) / dt;
+      this.lastX = x;
+      var edx = this.dxF.filter(dx, oeAlpha(this.dCutoff, dt));
+      var cutoff = this.minCutoff + this.beta * Math.abs(edx);
+      return this.xF.filter(x, oeAlpha(cutoff, dt));
+    };
+
+    /* ---------------- Per-finger press state machines ----------------
+       Independent for all ten fingertips (WPI-style per-finger active
+       note). A press = fingertip over a key crosses the strike line
+       downward, its downward speed having PEAKED above the gate during
+       the approach and now decelerating — a tap's signature, not a
+       drift's. Re-arm only above the release line + cooldown. */
+    var fingers = {}; /* id "Left:8" -> state */
+    function fingerState(id) {
+      if (!fingers[id]) {
+        fingers[id] = {
+          id: id, fx: new OneEuro(1.3, 0.004, 1.0), fy: new OneEuro(1.3, 0.004, 1.0),
+          x: 0, y: 0, prevY: 0, vy: 0, peakVel: 0, hasPos: false, wasHigh: false,
+          pressedKey: null, lastPressAt: 0, velRef: 1.15, lastSeen: 0
+        };
+      }
+      return fingers[id];
+    }
+
+    function velocityFromPeak(peakPxPerSec, fs) {
+      if (state.velocityMode === "fixed") return { value: FIXED_VELOCITY, band: "fixed" };
+      var raw = peakPxPerSec / Math.max(1, stageH); /* stage-heights per second */
+      var norm = raw / Math.max(0.55, fs.velRef);
+      var value = Math.max(0.15, Math.min(1, 0.20 + 0.80 * Math.pow(Math.min(1, norm), 0.8)));
+      /* adapt this finger's reference slowly toward its hardest taps */
+      fs.velRef = Math.max(fs.velRef * 0.985, raw);
+      var band = value < 0.45 ? "soft" : (value < 0.72 ? "medium" : "hard");
+      return { value: value, band: band };
+    }
+
+    function feedFinger(id, rawX, rawY, now) {
+      var fs = fingerState(id);
+      fs.lastSeen = now;
+      var x = fs.fx.filter(rawX, now), y = fs.fy.filter(rawY, now);
+      if (!fs.hasPos) { fs.x = x; fs.y = y; fs.prevY = y; fs.hasPos = true; guideDots[id] = { x: x, y: y, id: id, pressed: false }; return; }
+      var realDt = Math.max(8, now - (fs.lastT || now - 16)) / 1000;
+      var vyInst = (y - fs.prevY) / realDt;
+      fs.lastT = now;
+      fs.vy = fs.vy * 0.45 + vyInst * 0.55;
+      fs.prevY = fs.y; fs.x = x; fs.y = y;
+
+      var top = bandTop(), bottom = top + bandHeight();
+      var overColumn = keyColumnAt(x);
+      var key = keyAt(x, y);
+      /* "was high" = this finger has been above its column's release
+         line recently, so a deep entry below the strike line is a tap
+         that arrived, not a finger that was already resting there. */
+      if (overColumn && y < releaseY(overColumn)) fs.wasHigh = true;
+
+      /* --- approach: accumulate peak downward speed near the band --- */
+      if (y > top - stageH * 0.30 && y < (overColumn ? strikeY(overColumn) : bottom) + 6 && overColumn) {
+        if (fs.vy > fs.peakVel) fs.peakVel = fs.vy;
+      } else if (y < top - stageH * 0.34) {
+        fs.peakVel = 0; /* hand withdrawn well above the band: reset */
+      }
+
+      if (fs.pressedKey) {
+        var pk = fs.pressedKey;
+        if (!key || key !== pk || y < releaseY(pk)) {
+          noteOff(id);
+          fs.pressedKey = null;
+          fs.peakVel = 0;
+        }
+      } else if (key) {
+        var sy = strikeY(key);
+        var gate = VELOCITY_GATE_H * stageH;
+        var crossed = fs.prevY < sy && y >= sy;
+        var decelerating = fs.vy < fs.peakVel * 0.92 || y > sy + 7;
+        /* A tap still accelerating through the line fires one frame
+           later as a deep entry — but only if it genuinely came from
+           above the release line with gate-beating peak speed. */
+        var deepEntry = fs.wasHigh && fs.prevY < sy + 14 && y >= sy + 10;
+        if (((crossed && decelerating) || deepEntry) && fs.peakVel >= gate && now - fs.lastPressAt > PRESS_COOLDOWN_MS) {
+          var vel = velocityFromPeak(fs.peakVel, fs);
+          fs.pressedKey = key;
+          fs.lastPressAt = now;
+          fs.wasHigh = false;
+          key.flare = 1;
+          key.flashText = noteName(key.midi) + " · " + vel.band + " " + vel.value.toFixed(2);
+          key.flashAt = now;
+          noteOn(id, key.midi, vel.value);
+          fs.peakVel = 0;
+        }
+      }
+      guideDots[id] = { x: x, y: y, id: id, pressed: !!fs.pressedKey };
+      refreshKeyStates();
+    }
+
+    function dropFinger(id) {
+      var fs = fingers[id];
+      if (fs && fs.pressedKey) { noteOff(id); fs.pressedKey = null; }
+      if (fs) { fs.hasPos = false; fs.peakVel = 0; fs.vy = 0; }
+      delete guideDots[id];
+      refreshKeyStates();
+    }
+
+    /* Key hover/flare bookkeeping shared by hands, pointer, keyboard. */
+    var keyHolders = {}; /* keyId -> count of holders pressing it */
+    function keyId(key) { return key.kind + ":" + key.midi; }
+    function refreshKeyStates() {
+      for (var i = 0; i < allKeys.length; i++) {
+        var k = allKeys[i];
+        k.pressed = false; k.hoverAmt = 0;
+      }
+      for (var fid in fingers) {
+        var f = fingers[fid];
+        if (!f.hasPos) continue;
+        if (f.pressedKey) f.pressedKey.pressed = true;
+        else {
+          var top = bandTop();
+          if (f.y > top - stageH * 0.16 && f.y < strikeY(f.pressedKey || keyColumnAt(f.x) || { y: top, h: bandHeight() })) {
+            var col = keyColumnAt(f.x);
+            if (col && f.y < col.y + col.h) col.hoverAmt = Math.max(col.hoverAmt, 1 - Math.abs(f.y - (col.y + col.h * 0.4)) / (stageH * 0.3));
+          }
+        }
+      }
+      for (var pid in pointers) {
+        var p = pointers[pid];
+        if (p.key) p.key.pressed = true;
+        else { var c2 = keyColumnAt(p.x); if (c2 && p.y > bandTop() - stageH * 0.16 && p.y < c2.y + c2.h) c2.hoverAmt = Math.max(c2.hoverAmt, 0.8); }
+      }
+      for (var kid in kbHeld) { kbHeld[kid].pressed = true; }
+    }
+
+    /* ---------------- Readouts ---------------- */
+    var lastNoteEl = document.getElementById("last-note");
+    var noteFlashEl = document.getElementById("note-flash");
+    var flashTimer = null;
+    var recentNotes = [];
+    function onNoteSounded(midi, velocity) {
+      var band = state.velocityMode === "fixed" ? "fixed" : (velocity < 0.45 ? "soft" : (velocity < 0.72 ? "medium" : "hard"));
+      recentNotes.unshift(noteName(midi) + " " + band);
+      if (recentNotes.length > 3) recentNotes.pop();
+      lastNoteEl.textContent = recentNotes.join(" · ");
+      noteFlashEl.textContent = noteName(midi);
+      noteFlashEl.style.transition = "none"; noteFlashEl.style.opacity = "0.95";
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () {
+        noteFlashEl.style.transition = "opacity 700ms ease"; noteFlashEl.style.opacity = "0";
+      }, 60);
+    }
+
+    /* ---------------- Hands: poses & gestures ---------------- */
+    var guideDots = {};   /* fingerId -> {x,y,pressed} for rendering */
+    var handsSeen = {};   /* label -> {lm, since, lastSeen, wristX, wristY, wristSpeed, pose} */
+    var gesture = {
+      pinchBtn: null, pinchSince: 0, pinchCooldownUntil: 0,
+      fistId: null, fistSince: 0, fistLatched: false,
+      palmId: null, palmSince: 0, palmLatched: false,
+      cooldownUntil: 0
+    };
+
+    function dist2d(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+    function fingerExtended(lm, tip, pip) { return dist2d(lm[tip], lm[0]) > dist2d(lm[pip], lm[0]) * 1.12; }
+    function classifyPose(lm) {
+      var ext = 0;
+      var tips = [8, 12, 16, 20], pips = [6, 10, 14, 18];
+      for (var i = 0; i < 4; i++) if (fingerExtended(lm, tips[i], pips[i])) ext++;
+      if (ext === 0) return "fist";
+      if (ext >= 4) return "open";
+      return "other";
+    }
+    function pinchRatio(lm) {
+      var size = dist2d(lm[0], lm[9]);
+      if (size < 0.001) return 1;
+      return dist2d(lm[4], lm[8]) / size;
+    }
+
+    /* Top buttons: DOM rects mapped into stage coordinates. */
+    var stageBtns = [];
+    function collectStageBtns() {
+      stageBtns = [
+        { el: document.getElementById("sb-oct-down"), action: function () { shiftOctave(-1); } },
+        { el: document.getElementById("sb-oct-up"), action: function () { shiftOctave(1); } },
+        { el: document.getElementById("sb-sound"), action: function () { setSound(state.sound === "piano" ? "glass" : "piano"); } },
+        { el: document.getElementById("sb-velocity"), action: function () { setVelocityMode(state.velocityMode === "dynamic" ? "fixed" : "dynamic"); } }
+      ];
+      stageBtns.forEach(function (b) {
+        b.el.addEventListener("click", function () { b.action(); pulseBtn(b.el); });
+      });
+    }
+    function pulseBtn(el) {
+      el.classList.add("committed");
+      setTimeout(function () { el.classList.remove("committed"); }, 350);
+    }
+    function btnRectStage(el) {
+      var r = el.getBoundingClientRect(), cr = canvas.getBoundingClientRect();
+      return { x0: r.left - cr.left, y0: r.top - cr.top, x1: r.right - cr.left, y1: r.bottom - cr.top };
+    }
+    function setBtnFill(el, frac) {
+      var f = el.querySelector(".fill");
+      if (f) f.style.width = (frac * 100).toFixed(1) + "%";
+    }
+
+    function processHands(results) {
+      var now = performance.now();
+      var lists = results.multiHandLandmarks || [];
+      var labels = results.multiHandedness || [];
+      var seenLabels = {};
+      for (var h = 0; h < lists.length; h++) {
+        var lm = lists[h];
+        var label = (labels[h] && labels[h].label) || (h === 0 ? "Right" : "Left");
+        if (seenLabels[label]) label = label + "2";
+        seenLabels[label] = true;
+        var wrist = stagePoint(lm[0]);
+        var prev = handsSeen[label];
+        var wristSpeed = 0;
+        if (prev) {
+          var dt = Math.max(8, now - prev.lastSeen) / 1000;
+          wristSpeed = Math.sqrt(Math.pow(wrist.x - prev.wristX, 2) + Math.pow(wrist.y - prev.wristY, 2)) / dt;
+        }
+        var pose = classifyPose(lm);
+        handsSeen[label] = {
+          lm: lm, since: prev ? prev.since : now, lastSeen: now,
+          wristX: wrist.x, wristY: wrist.y, wristSpeed: wristSpeed, pose: pose
+        };
+        /* feed all five fingertips */
+        for (var fi = 0; fi < FINGERTIPS.length; fi++) {
+          var tipIdx = FINGERTIPS[fi];
+          var p = stagePoint(lm[tipIdx]);
+          feedFinger(label + ":" + tipIdx, p.x, p.y, now);
+        }
+        processGesturesForHand(label, lm, now);
+      }
+      /* hands that vanished: release their fingers and poses */
+      for (var lab in handsSeen) {
+        if (!seenLabels[lab]) {
+          for (var fj = 0; fj < FINGERTIPS.length; fj++) dropFinger(lab + ":" + FINGERTIPS[fj]);
+          if (gesture.fistId === lab) { gesture.fistId = null; gesture.fistLatched = false; }
+          if (gesture.palmId === lab) { gesture.palmId = null; gesture.palmLatched = false; }
+          delete handsSeen[lab];
+        }
+      }
+      updateHandCards();
+    }
+
+    function processGesturesForHand(label, lm, now) {
+      var hs = handsSeen[label];
+      var indexTip = stagePoint(lm[8]);
+      var centroidY = 0;
+      for (var i = 0; i < lm.length; i++) centroidY += stagePoint(lm[i]).y;
+      centroidY /= lm.length;
+      var belowBand = centroidY > bandTop() + bandHeight() + stageH * 0.045;
+      var still = hs.wristSpeed < 70; /* px/s */
+      var trackedLongEnough = now - hs.since > 900;
+
+      /* --- pinch on a top button (commit = pinch + 250 ms dwell) --- */
+      var ratio = pinchRatio(lm);
+      var pinching = ratio < PINCH_RATIO;
+      var btnHit = null;
+      if (pinching) {
+        for (var b = 0; b < stageBtns.length; b++) {
+          var r = btnRectStage(stageBtns[b].el);
+          if (indexTip.x >= r.x0 - 6 && indexTip.x <= r.x1 + 6 && indexTip.y >= r.y0 - 6 && indexTip.y <= r.y1 + 6) { btnHit = stageBtns[b]; break; }
+        }
+      }
+      if (btnHit && now > gesture.pinchCooldownUntil) {
+        if (gesture.pinchBtn !== btnHit) { gesture.pinchBtn = btnHit; gesture.pinchSince = now; }
+        var frac = (now - gesture.pinchSince) / PINCH_DWELL_MS;
+        setBtnFill(btnHit.el, Math.min(1, frac));
+        if (frac >= 1) {
+          btnHit.action();
+          pulseBtn(btnHit.el);
+          setBtnFill(btnHit.el, 0);
+          gesture.pinchBtn = null;
+          gesture.pinchCooldownUntil = now + 700;
+        }
+      } else {
+        if (gesture.pinchBtn) setBtnFill(gesture.pinchBtn.el, 0);
+        gesture.pinchBtn = null;
+      }
+
+      if (now < gesture.cooldownUntil) return;
+
+      /* --- fist below the band: sustain pedal toggle --- */
+      if (belowBand && hs.pose === "fist" && still) {
+        if (gesture.fistId !== label) { gesture.fistId = label; gesture.fistSince = now; }
+        hs.holdFrac = (now - gesture.fistSince) / FIST_HOLD_MS;
+        hs.holdLabel = "Sustain…";
+        if (hs.holdFrac >= 1 && !gesture.fistLatched) {
+          gesture.fistLatched = true;
+          setSustain(!state.sustainPedal, true);
+          gesture.cooldownUntil = now + 900;
+        }
+      } else {
+        if (gesture.fistId === label) gesture.fistId = null;
+        if (hs.pose !== "fist") gesture.fistLatched = false;
+        if (hs.holdLabel === "Sustain…") { hs.holdFrac = 0; hs.holdLabel = ""; }
+      }
+
+      /* --- open palm below the band, already-tracked & still: panic ---
+         The hold can only START for a hand that has been tracked a
+         while and is barely moving, so a hand entering the frame open
+         (the normal way hands arrive) never arms it. */
+      if (belowBand && hs.pose === "open" && still && trackedLongEnough) {
+        if (gesture.palmId !== label) { gesture.palmId = label; gesture.palmSince = now; }
+        hs.holdFrac = (now - gesture.palmSince) / PALM_HOLD_MS;
+        hs.holdLabel = "All notes off…";
+        if (hs.holdFrac >= 1 && !gesture.palmLatched) {
+          gesture.palmLatched = true;
+          allNotesOff();
+          setStatus("<b>All notes off</b> — open-palm reset below the band.");
+          gesture.cooldownUntil = now + 1200;
+        }
+      } else {
+        if (gesture.palmId === label) gesture.palmId = null;
+        if (hs.pose !== "open") gesture.palmLatched = false;
+        if (hs.holdLabel === "All notes off…") { hs.holdFrac = 0; hs.holdLabel = ""; }
+      }
+    }
+
+    var leftStateEl = document.getElementById("left-state"), leftSubEl = document.getElementById("left-sub");
+    var rightStateEl = document.getElementById("right-state"), rightSubEl = document.getElementById("right-sub");
+    function updateHandCards() {
+      [["Left", leftStateEl, leftSubEl], ["Right", rightStateEl, rightSubEl]].forEach(function (cfg) {
+        var lab = cfg[0], stEl = cfg[1], subEl = cfg[2];
+        var hs = handsSeen[lab] || handsSeen[lab + "2"];
+        if (!state.cameraOn) return;
+        if (!hs) { stEl.textContent = "Not seen"; subEl.textContent = "Bring it into the frame"; return; }
+        var n = 0;
+        for (var fid in fingers) if (fid.indexOf(lab) === 0 && fingers[fid].pressedKey) n++;
+        if (hs.holdLabel) { stEl.textContent = hs.holdLabel.replace("…", "") + " — hold"; subEl.textContent = "Keep the pose still below the band"; }
+        else if (n > 0) { stEl.textContent = "Playing — " + n + (n === 1 ? " note" : " notes"); subEl.textContent = "Lift past the release line to stop"; }
+        else if (hs.pose === "fist") { stEl.textContent = "Fist"; subEl.textContent = "Below the band, held still = sustain pedal"; }
+        else if (hs.pose === "open") { stEl.textContent = "Open palm"; subEl.textContent = "Below the band, held still = all notes off"; }
+        else { stEl.textContent = "Tracking"; subEl.textContent = "Tap down into a key to play"; }
+      });
+    }
+
+    /* ---------------- Rendering ---------------- */
+    function keyFill(k, alpha, light) {
+      return "hsla(" + PC_HUE[k.pc] + ", 78%, " + light + "%, " + alpha + ")";
+    }
+    function drawKey(k, now) {
+      var pressed = !!k.pressed;
+      var hover = Math.max(0, Math.min(1, k.hoverAmt || 0));
+      k.flare *= 0.94;
+      var isBlack = k.kind === "black";
+      var alpha, light;
+      if (isBlack) {
+        alpha = pressed ? 0.96 : 0.62 + hover * 0.2;
+        light = pressed ? 46 : 26 + hover * 8;
+      } else {
+        alpha = pressed ? 0.88 : 0.20 + hover * 0.26;
+        light = pressed ? 62 : 55 + hover * 10;
+      }
+      alpha = Math.min(0.97, alpha + k.flare * 0.1);
+      ctx.beginPath();
+      var r = isBlack ? 5 : 7;
+      ctx.roundRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2, [0, 0, r, r]);
+      ctx.fillStyle = keyFill(k, alpha, light);
+      ctx.fill();
+      ctx.lineWidth = pressed ? 2 : 1;
+      ctx.strokeStyle = pressed ? "rgba(255,246,224,0.95)" : "rgba(235,242,250,0.40)";
+      ctx.stroke();
+      if (pressed || k.flare > 0.25) {
+        ctx.save();
+        ctx.shadowColor = keyFill(k, 0.8, 60);
+        ctx.shadowBlur = 26 * Math.max(k.flare, pressed ? 0.7 : 0);
+        ctx.fillStyle = keyFill(k, 0.25 * Math.max(k.flare, pressed ? 0.6 : 0), 65);
+        ctx.fill();
+        ctx.restore();
+      }
+      /* note name (+ keyboard hint on whites) */
+      ctx.textAlign = "center";
+      if (isBlack) {
+        ctx.font = "600 10.5px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = "rgba(240,246,255,0.85)";
+        ctx.fillText(NOTE_NAMES[k.pc], k.x + k.w / 2, k.y + k.h - 8);
+      } else {
+        ctx.font = "600 12px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = pressed ? "rgba(20,16,8,0.85)" : "rgba(240,246,255,0.88)";
+        ctx.fillText(noteName(k.midi), k.x + k.w / 2, k.y + k.h - 20);
+        var hint = WHITE_KB_HINT[k.idx];
+        if (hint) {
+          ctx.font = "500 10px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = pressed ? "rgba(20,16,8,0.6)" : "rgba(220,230,244,0.55)";
+          ctx.fillText(hint, k.x + k.w / 2, k.y + k.h - 7);
+        }
+      }
+      /* velocity readout on the key as it fires */
+      if (k.flashText && now - k.flashAt < 1100) {
+        var a = 1 - (now - k.flashAt) / 1100;
+        ctx.font = "600 12.5px 'IBM Plex Mono', monospace";
+        ctx.lineWidth = 4; ctx.strokeStyle = "rgba(4,6,10," + (0.85 * a) + ")";
+        var tx = k.x + k.w / 2, ty = k.y + (isBlack ? k.h + 22 : 24);
+        ctx.strokeText(k.flashText, tx, ty);
+        ctx.fillStyle = "rgba(255,240,205," + a + ")";
+        ctx.fillText(k.flashText, tx, ty);
+      }
+    }
+
+    var WHITE_KB_HINT = ["Z","X","C","V","B","N","M","Q","W","E","R","T","Y","U","I"];
+
+    function draw() {
+      var now = performance.now();
+      /* backdrop: live mirrored video or idle gradient */
+      if (state.cameraOn && videoEl.readyState >= 2 && videoEl.videoWidth) {
+        var g = videoGeom();
+        ctx.save();
+        ctx.translate(stageW, 0); ctx.scale(-1, 1);
+        ctx.drawImage(videoEl, g.dx, g.dy, g.vw * g.scale, g.vh * g.scale);
+        ctx.restore();
+        ctx.fillStyle = "rgba(6,9,15,0.32)";
+        ctx.fillRect(0, 0, stageW, stageH);
+      } else {
+        var bg = ctx.createLinearGradient(0, 0, 0, stageH);
+        bg.addColorStop(0, "#101825"); bg.addColorStop(0.55, "#0a0f18"); bg.addColorStop(1, "#070a10");
+        ctx.fillStyle = bg; ctx.fillRect(0, 0, stageW, stageH);
+        if (!state.cameraOn) {
+          /* sit below the (possibly wrapped) top button row, clear of
+             the gesture-space caption that hugs the band */
+          var btnsEl = document.querySelector(".stage-btns");
+          var btnBottom = 56;
+          if (btnsEl) btnBottom = btnsEl.getBoundingClientRect().bottom - canvas.getBoundingClientRect().top;
+          var iy = Math.min(btnBottom + 26, bandTop() - 58);
+          ctx.textAlign = "center";
+          var narrow = stageW < 680;
+          var idleMsgs = [
+            { text: narrow ? "Your camera view fills this stage." : "Your camera view will fill this stage — the key band sits on top of it.", font: "600 15px 'Archivo', sans-serif", fill: "rgba(214,224,238,0.78)" },
+            { text: narrow ? "Start camera below — or click keys / use keyboard rows." : "Press Start camera below the stage. Until then, click the keys or use the two keyboard rows.", font: "500 13px 'Archivo', sans-serif", fill: "rgba(160,175,195,0.62)" }
+          ];
+          for (var mi = 0; mi < idleMsgs.length; mi++) {
+            var im = idleMsgs[mi];
+            ctx.font = im.font; ctx.fillStyle = im.fill;
+            /* word-wrap: canvas text does not wrap itself, and a
+               centred long line overflows both edges on a phone */
+            var words = im.text.split(" "), line = "", wrapped = [];
+            for (var wi = 0; wi < words.length; wi++) {
+              var test = line ? line + " " + words[wi] : words[wi];
+              if (ctx.measureText(test).width > stageW - 36 && line) { wrapped.push(line); line = words[wi]; }
+              else line = test;
+            }
+            if (line) wrapped.push(line);
+            for (var wj = 0; wj < wrapped.length; wj++) { ctx.fillText(wrapped[wj], stageW / 2, iy); iy += 20; }
+            iy += 3;
+          }
+        }
+      }
+
+      /* band backdrop panel */
+      var top = bandTop(), bh = bandHeight();
+      ctx.beginPath();
+      ctx.roundRect(stageW * 0.028, top - 10, stageW * 0.944, bh + 20, 14);
+      ctx.fillStyle = "rgba(5,8,13,0.42)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(210,224,244,0.20)"; ctx.lineWidth = 1; ctx.stroke();
+
+      /* zone captions — only while the camera is live (gestures are
+         impossible when it's off, and the camera-off explainer owns
+         that space then). Short forms on narrow stages so they fit. */
+      if (state.cameraOn) {
+        ctx.textAlign = "left";
+        ctx.font = "600 10.5px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = "rgba(190,205,228,0.55)";
+        if (stageW >= 680) {
+          ctx.fillText("GESTURE SPACE — PINCH THE BUTTONS ABOVE TO CHANGE MODES", stageW * 0.04, top - 18);
+          ctx.fillText("GESTURE SPACE — FIST = SUSTAIN · OPEN PALM HELD STILL = ALL NOTES OFF", stageW * 0.04, top + bh + 34);
+        } else {
+          ctx.font = "600 9.5px 'IBM Plex Mono', monospace";
+          ctx.fillText("PINCH THE TOP BUTTONS TO CHANGE MODES", stageW * 0.04, top - 18);
+          ctx.fillText("BELOW: FIST = SUSTAIN · PALM STILL = NOTES OFF", stageW * 0.04, top + bh + 34);
+        }
+      }
+
+      /* keys: whites first, blacks on top */
+      for (var i = 0; i < whites.length; i++) drawKey(whites[i], now);
+      for (var j = 0; j < blacks.length; j++) drawKey(blacks[j], now);
+
+      /* strike + release lines across the white keys */
+      var sx0 = whites.length ? whites[0].x : 0, sx1 = whites.length ? whites[whites.length - 1].x + whites[whites.length - 1].w : stageW;
+      var sY = top + bh * STRIKE_FRAC, rY = top + bh * RELEASE_FRAC;
+      ctx.save();
+      ctx.setLineDash([7, 6]);
+      ctx.strokeStyle = "rgba(232,163,61,0.85)"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(sx0, sY); ctx.lineTo(sx1, sY); ctx.stroke();
+      ctx.strokeStyle = "rgba(225,236,250,0.4)"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(sx0, rY); ctx.lineTo(sx1, rY); ctx.stroke();
+      ctx.restore();
+      /* line labels on dark pills, clear of the black-key names:
+         STRIKE sits below its line, RELEASE above its line */
+      ctx.font = "600 10px 'IBM Plex Mono', monospace"; ctx.textAlign = "left";
+      function lineLabel(text, x, yBase, fill) {
+        var w = ctx.measureText(text).width;
+        ctx.beginPath();
+        ctx.roundRect(x - 3, yBase - 10, w + 6, 14, 4);
+        ctx.fillStyle = "rgba(5,8,13,0.78)";
+        ctx.fill();
+        ctx.fillStyle = fill;
+        ctx.fillText(text, x, yBase);
+      }
+      lineLabel("STRIKE", sx0 + 5, sY + 13, "rgba(255,214,140,0.95)");
+      lineLabel("RELEASE", sx0 + 5, rY - 6, "rgba(225,236,250,0.75)");
+
+      /* fingertip guide dots — everywhere, pressed or not */
+      for (var fid in guideDots) {
+        var d = guideDots[fid];
+        var isLeft = fid.indexOf("Left") === 0;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.pressed ? 9 : 6.5, 0, 6.2832);
+        ctx.fillStyle = d.pressed ? (isLeft ? "rgba(94,216,255,0.95)" : "rgba(255,196,84,0.95)") : (isLeft ? "rgba(94,216,255,0.55)" : "rgba(255,196,84,0.55)");
+        ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.stroke();
+      }
+      /* pointer guide dot */
+      for (var pid in pointers) {
+        var p = pointers[pid];
+        if (p.down) continue;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 6.2832);
+        ctx.fillStyle = "rgba(240,246,255,0.5)"; ctx.fill();
+        ctx.lineWidth = 1.4; ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.stroke();
+      }
+
+      /* gesture hold progress arcs at the wrist */
+      for (var lab in handsSeen) {
+        var hs = handsSeen[lab];
+        if (hs.holdLabel && hs.holdFrac > 0.03) {
+          ctx.beginPath();
+          ctx.arc(hs.wristX, hs.wristY - 26, 15, -1.5708, -1.5708 + 6.2832 * Math.min(1, hs.holdFrac));
+          ctx.strokeStyle = "rgba(232,163,61,0.95)"; ctx.lineWidth = 3.4; ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(hs.wristX, hs.wristY - 26, 15, 0, 6.2832);
+          ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1.2; ctx.stroke();
+          ctx.font = "600 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+          ctx.lineWidth = 4; ctx.strokeStyle = "rgba(4,6,10,0.85)";
+          ctx.strokeText(hs.holdLabel, hs.wristX, hs.wristY - 50);
+          ctx.fillStyle = "rgba(255,240,205,0.95)";
+          ctx.fillText(hs.holdLabel, hs.wristX, hs.wristY - 50);
+        }
+      }
+      requestAnimationFrame(draw);
+    }
+
+    /* ---------------- Pointer (mouse / touch) ---------------- */
+    var pointers = {}; /* pointerId -> {x,y,down,key,holderKey} */
+    function pointerPos(e) {
+      var r = canvas.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    }
+    function pointerVelocity(key, y) {
+      if (state.velocityMode === "fixed") return FIXED_VELOCITY;
+      var frac = Math.max(0, Math.min(1, (y - key.y) / key.h));
+      return 0.30 + 0.70 * frac; /* lower on the key (front edge) = harder */
+    }
+    canvas.addEventListener("pointerdown", function (e) {
+      ensureAudio();
+      var p = pointerPos(e);
+      var key = keyAt(p.x, p.y);
+      var id = "ptr" + e.pointerId;
+      pointers[e.pointerId] = { x: p.x, y: p.y, down: true, key: key, lastVel: 0, lastT: performance.now(), lastY: p.y };
+      if (key) {
+        canvas.setPointerCapture(e.pointerId);
+        noteOn(id, key.midi, pointerVelocity(key, p.y));
+        key.flare = 1;
+      }
+      refreshKeyStates();
+      e.preventDefault();
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      var p = pointerPos(e);
+      var rec = pointers[e.pointerId];
+      var now = performance.now();
+      if (!rec) { pointers[e.pointerId] = { x: p.x, y: p.y, down: false, key: null, lastVel: 0, lastT: now, lastY: p.y }; rec = pointers[e.pointerId]; }
+      var dt = Math.max(8, now - rec.lastT) / 1000;
+      rec.lastVel = (p.y - rec.lastY) / dt;
+      rec.lastT = now; rec.lastY = p.y; rec.x = p.x; rec.y = p.y;
+      if (rec.down) {
+        var key = keyAt(p.x, p.y);
+        if (key !== rec.key) {
+          var id = "ptr" + e.pointerId;
+          noteOff(id);
+          rec.key = key;
+          if (key) {
+            var v = state.velocityMode === "fixed" ? FIXED_VELOCITY
+              : Math.max(pointerVelocity(key, p.y) * 0.7, Math.min(0.95, Math.abs(rec.lastVel) / stageH * 0.55));
+            noteOn(id, key.midi, v);
+            key.flare = 1;
+          }
+        }
+      }
+      refreshKeyStates();
+    });
+    function pointerEnd(e) {
+      var rec = pointers[e.pointerId];
+      if (rec && rec.down) noteOff("ptr" + e.pointerId);
+      delete pointers[e.pointerId];
+      refreshKeyStates();
+    }
+    canvas.addEventListener("pointerup", pointerEnd);
+    canvas.addEventListener("pointercancel", pointerEnd);
+    canvas.addEventListener("pointerleave", function (e) { if (!pointers[e.pointerId] || !pointers[e.pointerId].down) delete pointers[e.pointerId]; });
+
+    /* ---------------- Keyboard ---------------- */
+    var KB_MAP = {
+      KeyZ: ["white", 0], KeyS: ["black", 0], KeyX: ["white", 1], KeyD: ["black", 1], KeyC: ["white", 2],
+      KeyV: ["white", 3], KeyG: ["black", 3], KeyB: ["white", 4], KeyH: ["black", 4], KeyN: ["white", 5],
+      KeyJ: ["black", 5], KeyM: ["white", 6],
+      KeyQ: ["white", 7], Digit2: ["black", 7], KeyW: ["white", 8], Digit3: ["black", 8], KeyE: ["white", 9],
+      KeyR: ["white", 10], Digit5: ["black", 10], KeyT: ["white", 11], Digit6: ["black", 11], KeyY: ["white", 12],
+      Digit7: ["black", 12], KeyU: ["white", 13], KeyI: ["white", 14]
+    };
+    var kbHeld = {}; /* code -> key object */
+    function kbKeyFor(code) {
+      var m = KB_MAP[code];
+      if (!m) return null;
+      if (m[0] === "white") return whites[m[1]] || null;
+      for (var i = 0; i < blacks.length; i++) if (blacks[i].idx === m[1]) return blacks[i];
+      return null;
+    }
+    window.addEventListener("keydown", function (e) {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      var tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" && e.target.type !== "range") return;
+      var key = kbKeyFor(e.code);
+      if (!key) return;
+      ensureAudio();
+      var v = state.velocityMode === "fixed" ? FIXED_VELOCITY : (e.shiftKey ? 0.92 : 0.62);
+      noteOn("kbd:" + e.code, key.midi, v);
+      key.flare = 1;
+      kbHeld[e.code] = key;
+      refreshKeyStates();
+    });
+    window.addEventListener("keyup", function (e) {
+      if (!KB_MAP[e.code]) return;
+      noteOff("kbd:" + e.code);
+      delete kbHeld[e.code];
+      refreshKeyStates();
+    });
+
+    /* ---------------- Controls & modes ---------------- */
+    var statusLine = document.getElementById("status-line");
+    function setStatus(html) { statusLine.innerHTML = html; }
+    var rangeEl = document.getElementById("range-state");
+    var sustainEl = document.getElementById("sustain-state");
+    var pedalEl = document.getElementById("pedal-indicator");
+
+    function shiftOctave(dir) {
+      var next = Math.max(-1, Math.min(1, state.octaveShift + dir));
+      if (next === state.octaveShift) { setStatus(state.octaveShift > 0 ? "Already at the top octave for v1." : "Already at the bottom octave for v1."); return; }
+      allNotesOff();
+      state.octaveShift = next;
+      buildKeys();
+      var lo = noteName(baseMidi()), hi = noteName(baseMidi() + 24); /* top white key = base + 2 octaves */
+      rangeEl.textContent = lo + "–" + hi;
+      setStatus("<b>Octave shifted.</b> The band now plays " + lo + " to " + hi + ".");
+    }
+    function setSound(s) {
+      state.sound = s;
+      document.getElementById("sound-piano").setAttribute("aria-pressed", s === "piano" ? "true" : "false");
+      document.getElementById("sound-glass").setAttribute("aria-pressed", s === "glass" ? "true" : "false");
+      document.querySelector("#sb-sound .lbl").textContent = "Sound: " + (s === "piano" ? "Piano" : "Glass");
+      setStatus("<b>Sound: " + (s === "piano" ? "Piano" : "Glass") + ".</b>");
+    }
+    function setVelocityMode(m) {
+      state.velocityMode = m;
+      document.getElementById("vel-dynamic").setAttribute("aria-pressed", m === "dynamic" ? "true" : "false");
+      document.getElementById("vel-fixed").setAttribute("aria-pressed", m === "fixed" ? "true" : "false");
+      document.querySelector("#sb-velocity .lbl").textContent = "Velocity: " + (m === "dynamic" ? "Dynamic" : "Fixed");
+      setStatus(m === "dynamic"
+        ? "<b>Dynamic velocity.</b> Tap harder for louder — loudness follows your fingertip's peak downward speed, in soft / medium / hard bands."
+        : "<b>Fixed velocity.</b> Every note plays at the same loudness, however you tap — the honest fallback when dynamics feel inconsistent.");
+    }
+    function setSustain(on, fromGesture) {
+      state.sustainPedal = on;
+      sustainEl.textContent = on ? "on" : "off";
+      pedalEl.className = on ? "on" : "";
+      pedalEl.id = "pedal-indicator";
+      document.getElementById("btn-sustain").setAttribute("aria-pressed", on ? "true" : "false");
+      if (!on) releasePedalVoices();
+      setStatus(on ? "<b>Sustain pedal on</b> — notes keep ringing after you lift." + (fromGesture ? " (fist below the band)" : "")
+                   : "<b>Sustain pedal off.</b>" + (fromGesture ? " (fist below the band)" : ""));
+    }
+    document.getElementById("oct-down").addEventListener("click", function () { shiftOctave(-1); });
+    document.getElementById("oct-up").addEventListener("click", function () { shiftOctave(1); });
+    document.getElementById("sound-piano").addEventListener("click", function () { setSound("piano"); });
+    document.getElementById("sound-glass").addEventListener("click", function () { setSound("glass"); });
+    document.getElementById("vel-dynamic").addEventListener("click", function () { setVelocityMode("dynamic"); });
+    document.getElementById("vel-fixed").addEventListener("click", function () { setVelocityMode("fixed"); });
+    document.getElementById("btn-sustain").addEventListener("click", function () { setSustain(!state.sustainPedal, false); });
+    document.getElementById("btn-panic").addEventListener("click", function () { allNotesOff(); setStatus("<b>All notes off.</b>"); });
+    document.getElementById("vol").addEventListener("input", function (e) {
+      state.volume = e.target.value / 100;
+      if (masterGain) masterGain.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
+    });
+
+    /* ---------------- Camera ---------------- */
+    var hands = null, videoStream = null, lastVideoTime = -1, sendingFrame = false;
+    var btnCamera = document.getElementById("btn-camera");
+    var camDot = document.getElementById("cam-dot");
+    var camState = document.getElementById("cam-state");
+    function setCamUI(on, label, warn) {
+      camState.textContent = label;
+      camDot.className = "dot" + (on ? " on" : (warn ? " warn" : ""));
+      btnCamera.textContent = on ? "Stop camera" : "Start camera";
+      btnCamera.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    function initHands() {
+      if (hands) return true;
+      if (typeof window.Hands === "undefined") return false;
+      hands = new window.Hands({
+        locateFile: function (f) { return "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/" + f; }
+      });
+      hands.setOptions({
+        maxNumHands: 2, modelComplexity: 0,
+        minDetectionConfidence: 0.6, minTrackingConfidence: 0.5
+      });
+      hands.onResults(processHands);
+      return true;
+    }
+    function pumpFrames() {
+      if (!state.cameraOn) return;
+      if (videoEl.readyState >= 2 && videoEl.currentTime !== lastVideoTime && !sendingFrame) {
+        lastVideoTime = videoEl.currentTime;
+        sendingFrame = true;
+        hands.send({ image: videoEl }).catch(function () {}).then(function () { sendingFrame = false; });
+      }
+      requestAnimationFrame(pumpFrames);
+    }
+    function startCamera() {
+      ensureAudio();
+      if (!initHands()) {
+        setCamUI(false, "Tracking unavailable", true);
+        setStatus("<b>Hand-tracking library didn't load</b> (it comes from a CDN). The piano still plays — click the keys or use the keyboard rows.");
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCamUI(false, "Camera unavailable", true);
+        setStatus("<b>This browser can't open a camera here.</b> The piano still plays — click the keys or use the keyboard rows.");
+        return;
+      }
+      setStatus("Opening the camera…");
+      navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }, audio: false })
+        .then(function (stream) {
+          videoStream = stream;
+          videoEl.srcObject = stream;
+          return videoEl.play();
+        })
+        .then(function () {
+          state.cameraOn = true;
+          setCamUI(true, "Camera on");
+          setStatus("<b>Camera on — that's you, with the key band across the middle.</b> Move your hands freely to aim — the guide dots are silent. <b>Tap a fingertip down across a key's amber strike line</b> to play it; lift above the release line to stop. Pinch the top buttons to change modes; fist below the band is the sustain pedal. Video is processed in this page only.");
+          pumpFrames();
+        })
+        .catch(function () {
+          setCamUI(false, "Camera blocked", true);
+          setStatus("<b>Camera permission was denied or no camera was found.</b> The piano still plays — click the keys or use the keyboard rows.");
+        });
+    }
+    function stopCamera() {
+      state.cameraOn = false;
+      if (videoStream) { videoStream.getTracks().forEach(function (t) { t.stop(); }); videoStream = null; }
+      videoEl.srcObject = null;
+      for (var lab in handsSeen) {
+        for (var fj = 0; fj < FINGERTIPS.length; fj++) dropFinger(lab + ":" + FINGERTIPS[fj]);
+      }
+      handsSeen = {};
+      guideDots = {};
+      setCamUI(false, "Camera off");
+      leftStateEl.textContent = "Not seen"; rightStateEl.textContent = "Not seen";
+      leftSubEl.textContent = "Bring it into the frame"; rightSubEl.textContent = "Bring it into the frame";
+      setStatus("Camera off. Click or tap the keys, or play the two keyboard rows.");
+    }
+    btnCamera.addEventListener("click", function () { state.cameraOn ? stopCamera() : startCamera(); });
+
+    /* ---------------- Init ---------------- */
+    collectStageBtns();
+    buildKeys();
+    resize();
+    requestAnimationFrame(draw);
+    </script>
+  </body>
+</html>

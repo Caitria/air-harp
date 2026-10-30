@@ -28,6 +28,14 @@ The harp has 15 particle strings, laid out left to right as scale degrees in C, 
 
 Plucking uses segment-crossing detection: a string fires when the pick's *path* crosses it (so fast strums register), with velocity taken from crossing speed, an 80 ms per-string cooldown, and a re-arm rule so one crossing never double-fires. Strings are never draggable — a pluck only starts a vibration around a string's fixed home, capped well under the distance to the next string, so strings can't warp into each other.
 
+## Air Piano
+
+The second instrument lives in [`air-piano/`](air-piano/index.html) — open that file the same way. A horizontal band of keys sits across the middle of your camera view: fifteen white keys (C4–C6) with real black-key grouping, drawn as semi-transparent colour — one colour per pitch class — over the live video.
+
+Your fingers are tracked everywhere on screen (each fingertip gets a guide dot, and the key under an approaching finger pre-lights), but a note sounds only when a fingertip taps **down** through the key's strike line and lifts back past the release line. Each finger is judged independently, so both hands can play at once. How hard the tap was sets the loudness, in soft / medium / hard bands read from the fingertip's approach speed (a Fixed velocity mode is in the top buttons if you'd rather it didn't). Pinch the buttons along the top of the stage — octave, sound, velocity mode — to change settings by hand; hold a fist below the band to toggle the sustain pedal.
+
+![Air Piano: a band of coloured, semi-transparent piano keys across the middle of the stage with dashed strike and release lines, the C5 key flaring as it is pressed, mode buttons along the top of the stage and hand-status cards below](docs/screenshots/air-piano.jpg)
+
 ## Status
 
 Working prototype, tested live by its maker on a real webcam (Oct 30, 2026). v1 fixes already in, from that first live test: strings no longer warp/drag, and the pinch clutch above replaced trigger-on-any-touch after every finger was firing every string it passed.
