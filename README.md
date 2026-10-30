@@ -4,6 +4,16 @@ A webcam air harp: pluck particle strings on screen with your hands to make musi
 
 Open `index.html` in a browser (Chrome works best), allow camera access, and play. No build step, no server, nothing to install. Hand tracking runs in your browser on your own machine; video is not sent anywhere.
 
+## Screenshots
+
+Strings mode — pluck individual strings. The badge at the top of the stage shows the clutch state ("Moving — silent · pinch to play"), the big readout is the last note played, and the two cards track each hand's job:
+
+![Air Harp in strings mode: fifteen particle strings, three of them still vibrating from being plucked, with hand-status cards and the Strings/Chords, Major/Minor, scale and sound controls below](docs/screenshots/strings-mode.jpg)
+
+Chord mode — the strings are labelled with the chord each one plays (I C, ii Dm, iii Em, V G, vi Am…), and crossing a string plays that whole chord:
+
+![Air Harp in chord mode: strings labelled with their chord names, the last chord played shown as A minor, with the Chords toggle selected in the controls below](docs/screenshots/chord-mode.jpg)
+
 ## How to play
 
 The harp has 15 particle strings, laid out left to right as scale degrees in C, so anything you strum lands in key.
