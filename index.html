@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Air Harp</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #edf0f2;
+        --panel: #ffffff;
+        --ink: #131720;
+        --ink-soft: #4a5262;
+        --line: #d3d9df;
+        --stage-edge: #232c3d;
+        --accent: #b97a16;
+        --accent-ink: #8a5c08;
+        --teal: #0f766e;
+        --chip-bg: #e4e9ed;
+        --btn-bg: #ffffff;
+        --btn-ink: #131720;
+        --btn-on-bg: #131720;
+        --btn-on-ink: #f5f2ea;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0c10;
+          --panel: #12151c;
+          --ink: #ece9e2;
+          --ink-soft: #9aa3b2;
+          --line: #262c38;
+          --stage-edge: #39445c;
+          --accent: #e8a33d;
+          --accent-ink: #e8a33d;
+          --teal: #2dd4bf;
+          --chip-bg: #1b2029;
+          --btn-bg: #171b23;
+          --btn-ink: #ece9e2;
+          --btn-on-bg: #e8a33d;
+          --btn-on-ink: #171106;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 18px 40px; }
+
+      header.top {
+        display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 22px;
+        margin-bottom: 14px;
+      }
+      header.top h1 {
+        font-size: clamp(30px, 4.6vw, 44px); line-height: 1.02; margin: 0;
+        font-weight: 800; letter-spacing: -0.015em;
+      }
+      header.top p.tag {
+        margin: 0 0 4px; color: var(--ink-soft); font-size: 15px; max-width: 46ch;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; padding-bottom: 2px; }
+      .chip {
+        font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+        background: var(--chip-bg); border: 1px solid var(--line); border-radius: 999px;
+        padding: 5px 11px; white-space: nowrap;
+      }
+      .chip b { font-weight: 600; }
+      .chip .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9aa3b2; margin-right: 6px; vertical-align: 1px; }
+      .chip .dot.on { background: #22c07a; }
+      .chip .dot.warn { background: #e8a33d; }
+
+      .stage-shell {
+        position: relative; border-radius: 18px; overflow: hidden;
+        border: 1px solid var(--stage-edge);
+        background: #0b0f16;
+        box-shadow: 0 18px 50px rgba(5, 10, 20, 0.35);
+      }
+      canvas#stage { display: block; width: 100%; height: min(62vh, 560px); min-height: 340px; touch-action: none; cursor: crosshair; }
+      @media (max-width: 640px) { canvas#stage { height: 58vh; min-height: 300px; } }
+
+      #clutch-indicator {
+        position: absolute; top: 12px; left: 12px; display: flex; align-items: center; gap: 8px;
+        background: rgba(10, 14, 22, 0.78); border: 1px solid rgba(255,255,255,.22);
+        border-radius: 999px; padding: 7px 13px; color: #dfe5ee; pointer-events: none;
+        font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600;
+        backdrop-filter: blur(3px);
+      }
+      #clutch-indicator .clutch-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        border: 2px solid #aeb9c9; background: transparent; flex: none;
+      }
+      #clutch-indicator.playing { border-color: #e8a33d; color: #ffe9bd; }
+      #clutch-indicator.playing .clutch-dot { background: #e8a33d; border-color: #e8a33d; }
+      #note-flash {
+        position: absolute; top: 14px; left: 0; right: 0; text-align: center;
+        font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
+        font-size: clamp(26px, 4vw, 40px); color: #f3e9d2; pointer-events: none;
+        opacity: 0; text-shadow: 0 2px 18px rgba(0,0,0,.6);
+      }
+      #cam-pip {
+        position: absolute; right: 12px; bottom: 12px; width: 168px; aspect-ratio: 4/3;
+        border-radius: 10px; border: 1px solid rgba(255,255,255,.35); object-fit: cover;
+        transform: scaleX(-1); background: #000; display: none;
+      }
+      .hand-cards {
+        position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; pointer-events: none;
+        max-width: calc(100% - 200px); flex-wrap: wrap;
+      }
+      .hand-card {
+        background: rgba(10, 14, 22, 0.72); border: 1px solid rgba(255,255,255,.16);
+        border-radius: 10px; padding: 7px 10px; color: #dfe5ee; min-width: 128px;
+        backdrop-filter: blur(3px);
+      }
+      .hand-card .hc-role { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: #93a1b5; }
+      .hand-card .hc-state { font-size: 14.5px; font-weight: 600; margin-top: 1px; }
+      .hand-card .hc-sub { font-size: 12px; color: #aeb9c9; }
+
+      .controls {
+        display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 12px 14px; margin-top: 14px;
+      }
+      .ctl-group { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+      .ctl-label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); margin-right: 1px; }
+      button, .seg-btn {
+        font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+        background: var(--btn-bg); color: var(--btn-ink);
+        border: 1px solid var(--line); border-radius: 9px; padding: 8px 13px;
+      }
+      button:hover, .seg-btn:hover { border-color: var(--ink-soft); }
+      button:focus-visible, .seg-btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+      .seg .seg-btn { border: 0; border-radius: 0; padding: 8px 12px; }
+      .seg .seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+      .seg .seg-btn[aria-pressed="true"] { background: var(--btn-on-bg); color: var(--btn-on-ink); }
+      button.primary { background: var(--btn-on-bg); color: var(--btn-on-ink); border-color: var(--btn-on-bg); }
+      button.primary[aria-pressed="true"] { background: #b3362b; border-color: #b3362b; color: #fff; }
+      input[type="range"] { accent-color: var(--accent); width: 110px; }
+      .status-line { font-size: 13.5px; color: var(--ink-soft); margin: 10px 2px 0; min-height: 1.3em; }
+      .status-line b { color: var(--ink); }
+
+      .below { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
+      @media (max-width: 860px) { .below { grid-template-columns: 1fr; } }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+      .card h2 { font-size: 17px; margin: 0 0 8px; font-weight: 700; letter-spacing: -0.01em; }
+      .card p, .card li { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
+      .card p { margin: 0 0 8px; }
+      .card ul { margin: 0; padding-left: 18px; }
+      .card li { margin-bottom: 5px; }
+      .card b, .card strong { color: var(--ink); }
+      .card a { color: var(--accent-ink); }
+      kbd {
+        font-family: "IBM Plex Mono", monospace; font-size: 12px; background: var(--chip-bg);
+        border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 1px 5px; color: var(--ink);
+      }
+      footer.note { margin-top: 20px; font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+      footer.note a { color: var(--accent-ink); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <div>
+          <h1>Air Harp</h1>
+          <p class="tag">Fifteen strings of light. Pluck them with a hand in front of your webcam — or drag across them.</p>
+        </div>
+        <div class="chips" aria-label="Instrument status">
+          <span class="chip"><span class="dot" id="cam-dot"></span><b id="cam-state">Camera off</b></span>
+          <span class="chip">Key <b id="key-state">C major</b></span>
+          <span class="chip"><span id="last-label">Last note</span> <b id="last-note">—</b></span>
+        </div>
+      </header>
+
+      <div class="stage-shell">
+        <canvas id="stage" role="img" aria-label="Air Harp stage: fifteen vertical particle strings. Move across them to select silently; press and drag, or pinch thumb to index finger with the camera on, to pluck."></canvas>
+        <div id="clutch-indicator"><span class="clutch-dot"></span><span id="clutch-text">Moving — silent · pinch to play</span></div>
+        <div id="note-flash" aria-hidden="true"></div>
+        <video id="cam-pip" playsinline muted aria-label="Camera preview"></video>
+        <div class="hand-cards">
+          <div class="hand-card" id="card-pluck">
+            <div class="hc-role">Pluck hand · <span id="pluck-side-label">right</span></div>
+            <div class="hc-state" id="pluck-state">Not seen</div>
+            <div class="hc-sub" id="pluck-sub">Index finger selects — silent · pinch to play</div>
+          </div>
+          <div class="hand-card" id="card-mod">
+            <div class="hc-role">Harmony hand · <span id="mod-side-label">left</span></div>
+            <div class="hc-state" id="mod-state">Not seen</div>
+            <div class="hc-sub" id="mod-sub">Open palm = major · fist = minor</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls" role="group" aria-label="Instrument controls">
+        <div class="ctl-group">
+          <button id="btn-camera" class="primary" aria-pressed="false">Start camera</button>
+          <button id="btn-swap" title="Swap which hand plucks and which hand shapes the harmony">Swap hands</button>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-play">Play</span>
+          <div class="seg" role="group" aria-labelledby="lbl-play">
+            <button class="seg-btn" id="play-strings" aria-pressed="true">Strings</button>
+            <button class="seg-btn" id="play-chords" aria-pressed="false">Chords</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-mode">Harmony</span>
+          <div class="seg" role="group" aria-labelledby="lbl-mode">
+            <button class="seg-btn" id="mode-major" aria-pressed="true">Major</button>
+            <button class="seg-btn" id="mode-minor" aria-pressed="false">Minor</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-scale">Scale</span>
+          <div class="seg" role="group" aria-labelledby="lbl-scale">
+            <button class="seg-btn" id="scale-penta" aria-pressed="true">Pentatonic</button>
+            <button class="seg-btn" id="scale-dia" aria-pressed="false">Full scale</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <span class="ctl-label" id="lbl-sound">Sound</span>
+          <div class="seg" role="group" aria-labelledby="lbl-sound">
+            <button class="seg-btn" id="sound-pluck" aria-pressed="true">Pluck</button>
+            <button class="seg-btn" id="sound-glass" aria-pressed="false">Glass</button>
+          </div>
+        </div>
+        <div class="ctl-group">
+          <label class="ctl-label" for="vol">Volume</label>
+          <input type="range" id="vol" min="0" max="100" value="80" />
+        </div>
+      </div>
+      <p class="status-line" id="status-line">Sound starts on your first pluck or camera start. <b>No camera?</b> Move over the strings to select silently, press and drag to pluck, or play keys <kbd>1</kbd>–<kbd>9</kbd> <kbd>0</kbd> <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>.</p>
+
+      <div class="below">
+        <section class="card">
+          <h2>Playing with the camera</h2>
+          <ul>
+            <li>Sit about an arm's length back so <b>both hands fit the frame</b>, with light in front of you, not behind.</li>
+            <li><b>Move freely — it's silent.</b> With no pinch held, only your pluck hand's <b>index fingertip</b> selects: it pre-lights the string nearest it, but crossing strings makes <b>no sound</b>. Your other fingers never trigger anything, so you can travel across the whole harp to get into position without playing a note.</li>
+            <li><b>Pinch to play.</b> Hold a <b>thumb-to-index pinch</b> on the pluck hand and the pinch point becomes a pick (the amber puck on screen). While you pinch, sweeping that pick across a string plucks it — faster crossing = louder pluck. <b>Release the pinch and you're silent again</b> instantly, free to reposition.</li>
+            <li>The badge at the stage's top-left always shows which state you're in: <b>Moving — silent</b>, or <b>Pinching — playing</b>. A string has to be re-crossed to sound again — no machine-gun retriggering.</li>
+            <li><b>Harmony hand:</b> hold an <b>open palm for major</b>, make a <b>fist for minor</b>. The strings retune the moment the new shape settles. <b>Pinch</b> on this hand sustains — notes ring longer while you hold it — and raising or lowering it brightens or darkens the tone.</li>
+            <li><b>Chord mode</b> (Play toggle below): crossing a string with the pinch held plays the <b>whole chord</b> built on that string's degree instead of one note.</li>
+            <li><b>Mouse / touch:</b> moving without pressing is silent selection, exactly like the un-pinched hand; <b>press and drag</b> is the pinch — crossings fire while pressed.</li>
+          </ul>
+        </section>
+        <section class="card">
+          <h2>Why it stays in key</h2>
+          <p>Every string is a <b>scale degree</b>, never a chromatic note, so a wild strum is an arpeggio in key instead of a mess. Pentatonic is the default — five safe notes per octave, the layout projects like AetherPlay use so any combination still sounds good.</p>
+          <p>Switch to <b>Full scale</b> for all seven degrees, and flip Major/Minor to hear the same strings retune — in minor, the third, sixth and seventh degrees drop, exactly as diatonic harmony says they should.</p>
+        </section>
+        <section class="card">
+          <h2>How the pluck is detected</h2>
+          <p>Adapted from <a href="https://synthgesture.com/blog/how-gesture-synth-turns-hand-landmarks-into-music">Gesture Synth's engineering write-up</a>: a hit is a plucking point's <b>path segment crossing the string</b> — not just pointing at it — with velocity taken from crossing speed, an <b>80&nbsp;ms cooldown</b> per string, and a <b>~100&nbsp;ms pose-stability</b> rule before a hand shape commits, so chords and modes don't flicker.</p>
+          <p>The plucking point is gated by a <b>pinch clutch</b>: un-pinched, the index fingertip only selects and nothing it crosses can sound; pinched, the thumb–index midpoint is the one and only pick. The strings themselves are <b>fixed in place</b> — a pluck only sets a string vibrating around its home position, capped well inside the gap to its neighbours, so strings never drag, wander, or overlap.</p>
+          <p>The string sound is a Karplus-Strong plucked-string model (the family behind Tone.js's <a href="https://tonejs.github.io/docs/r12/PluckSynth">PluckSynth</a>), generated note by note in your browser.</p>
+        </section>
+      </div>
+
+      <footer class="note">
+        Built from the gesture-music research brief: bimanual grammar after
+        <a href="https://github.com/Ekmand/gesture-synth">Gesture Synth</a> and
+        <a href="https://github.com/Lameda12/vivomusicano">Vivomusicano</a>; proximity pre-lighting borrowed from the 2013 Leap Motion AirHarp.
+        Conducting — setting tempo and time signature by beating time — is the next phase; the method it will use (beats as the low points of the right hand, tempo from the gaps between them) is from
+        <a href="https://www.jeffreyernest.com/assets/projects/conducting-tutor/icmc25-paper.pdf">Salgian, Burke &amp; Ernest, ICMC 2025</a>, whose own verdict is that tempo from conducting is reliable while time signature is fragile — so it will arrive as a suggestion you confirm, not a silent switch.
+        Video is processed locally in this page; nothing is recorded or sent anywhere.
+      </footer>
+    </div>
+
+    <script>
+    "use strict";
+    /* ============================================================
+       Air Harp — particle strings, crossing detection, bimanual
+       harmony modifier. Tracking: MediaPipe Hands (21 landmarks).
+       Sound: Karplus-Strong plucks / glass synth, raw Web Audio.
+       ============================================================ */
+
+    var NOTE_NAMES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    var SCALES = {
+      majorPenta: [0,2,4,7,9],
+      minorPenta: [0,3,5,7,10],
+      majorDia:   [0,2,4,5,7,9,11],
+      minorDia:   [0,2,3,5,7,8,10]
+    };
+    var DEGREE_HUES = [40, 168, 205, 262, 322, 96, 14]; /* per scale degree */
+    var STRING_COUNT = 15;
+    var ROOT_MIDI = 60; /* C4 */
+    var KEY_LETTERS = "1234567890qwert";
+
+    var state = {
+      playMode: "strings",      /* "strings" | "chords" */
+      mode: "major",            /* "major" | "minor" */
+      scaleType: "penta",       /* "penta" | "dia" */
+      sound: "pluck",           /* "pluck" | "glass" */
+      sustain: false,
+      pluckSide: "Right",       /* anatomical label of the plucking hand */
+      cameraOn: false,
+      volume: 0.8
+    };
+
+    function scaleIntervals() {
+      if (state.scaleType === "penta") return state.mode === "major" ? SCALES.majorPenta : SCALES.minorPenta;
+      return state.mode === "major" ? SCALES.majorDia : SCALES.minorDia;
+    }
+    function midiForString(i) {
+      var iv = scaleIntervals();
+      var oct = Math.floor(i / iv.length);
+      var deg = i % iv.length;
+      return { midi: ROOT_MIDI + oct * 12 + iv[deg], degree: deg };
+    }
+    function noteName(midi) { return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1); }
+    function midiFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+    /* ---------------- Audio ---------------- */
+    var actx = null, masterGain = null, filterNode = null, wetGain = null;
+    var ksCache = {};
+
+    function ensureAudio() {
+      if (actx) { if (actx.state === "suspended") actx.resume(); return true; }
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      actx = new AC({ latencyHint: "interactive" });
+      var comp = actx.createDynamicsCompressor();
+      comp.threshold.value = -18; comp.ratio.value = 6;
+      comp.connect(actx.destination);
+      masterGain = actx.createGain();
+      masterGain.gain.value = state.volume;
+      masterGain.connect(comp);
+
+      filterNode = actx.createBiquadFilter();
+      filterNode.type = "lowpass"; filterNode.frequency.value = 5200; filterNode.Q.value = 0.4;
+      filterNode.connect(masterGain);
+
+      var conv = actx.createConvolver();
+      conv.buffer = makeImpulse(1.7, 2.6);
+      wetGain = actx.createGain(); wetGain.gain.value = 0.33;
+      filterNode.connect(conv); conv.connect(wetGain); wetGain.connect(masterGain);
+      return true;
+    }
+    function makeImpulse(seconds, decayPow) {
+      var sr = actx.sampleRate, len = Math.floor(sr * seconds);
+      var buf = actx.createBuffer(2, len, sr);
+      for (var ch = 0; ch < 2; ch++) {
+        var d = buf.getChannelData(ch);
+        for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decayPow);
+      }
+      return buf;
+    }
+    /* Karplus-Strong: noise burst into a feedback delay line, rendered offline. */
+    function ksBuffer(midi, longRing) {
+      var key = midi + (longRing ? "L" : "S");
+      if (ksCache[key]) return ksCache[key];
+      var freq = midiFreq(midi);
+      var seconds = longRing ? 4.2 : 2.4;
+      var sr = actx.sampleRate, len = Math.floor(sr * seconds);
+      var buf = actx.createBuffer(1, len, sr);
+      var out = buf.getChannelData(0);
+      var p = Math.max(2, Math.round(sr / freq));
+      var ring = new Float32Array(p);
+      for (var i = 0; i < p; i++) ring[i] = Math.random() * 2 - 1;
+      var t60 = longRing ? 5.0 : 2.3;
+      var g = Math.exp(Math.log(0.001) / (freq * t60)); /* feedback gain for -60 dB at t60 */
+      var idx = 0;
+      for (var n = 0; n < len; n++) {
+        var cur = ring[idx];
+        out[n] = cur;
+        var nxt = ring[(idx + 1) % p];
+        ring[idx] = g * 0.5 * (cur + nxt);
+        idx = (idx + 1) % p;
+      }
+      ksCache[key] = buf;
+      return buf;
+    }
+    function playPluck(midi, velocity) {
+      if (!ensureAudio()) return;
+      var src = actx.createBufferSource();
+      src.buffer = ksBuffer(midi, state.sustain);
+      var gn = actx.createGain();
+      gn.gain.value = 0.25 + velocity * 0.75;
+      src.connect(gn); gn.connect(filterNode);
+      src.start();
+    }
+    function playGlass(midi, velocity) {
+      if (!ensureAudio()) return;
+      var f = midiFreq(midi);
+      var dur = state.sustain ? 3.4 : 1.9;
+      var t = actx.currentTime;
+      var gn = actx.createGain();
+      gn.gain.setValueAtTime(0.0001, t);
+      gn.gain.exponentialRampToValueAtTime(0.16 + velocity * 0.5, t + 0.012);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      gn.connect(filterNode);
+      var partials = [[1, 1], [3.01, 0.28], [5.42, 0.07]];
+      for (var i = 0; i < partials.length; i++) {
+        var o = actx.createOscillator();
+        o.type = "sine"; o.frequency.value = f * partials[i][0];
+        var og = actx.createGain(); og.gain.value = partials[i][1];
+        o.connect(og); og.connect(gn);
+        o.start(t); o.stop(t + dur + 0.05);
+      }
+    }
+    function playNote(midi, velocity) {
+      if (state.sound === "glass") playGlass(midi, velocity); else playPluck(midi, velocity);
+    }
+    </script>
+    <script>
+    "use strict";
+    /* ---------------- Stage & strings ---------------- */
+    var canvas = document.getElementById("stage");
+    var ctx = canvas.getContext("2d");
+    var stageW = 0, stageH = 0, dpr = 1;
+    var NP = 46; /* particles per string */
+    var strings = [];
+    var floaters = []; /* floating note labels */
+    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function buildStrings() {
+      var old = strings;
+      strings = [];
+      for (var i = 0; i < STRING_COUNT; i++) {
+        var info = midiForString(i);
+        var s = {
+          idx: i, midi: info.midi, degree: info.degree,
+          hue: DEGREE_HUES[info.degree % DEGREE_HUES.length],
+          disp: new Float32Array(NP), vel: new Float32Array(NP),
+          glow: old[i] ? old[i].glow : 0, near: 0,
+          lastHit: 0, x: 0
+        };
+        if (old[i]) { s.disp.set(old[i].disp); s.vel.set(old[i].vel); }
+        strings.push(s);
+      }
+      layoutStrings();
+    }
+    function layoutStrings() {
+      if (!stageW) return;
+      var margin = stageW * 0.055;
+      var span = stageW - margin * 2;
+      for (var i = 0; i < strings.length; i++) strings[i].x = margin + span * (i / (strings.length - 1));
+    }
+    function stringTop() { return stageH * 0.145; } /* low enough that the label row clears the clutch badge at the stage's top-left */
+    function stringBottom() { return stageH * 0.90; }
+
+    function resize() {
+      var rect = canvas.getBoundingClientRect();
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      stageW = Math.max(300, rect.width); stageH = Math.max(260, rect.height);
+      canvas.width = Math.round(stageW * dpr); canvas.height = Math.round(stageH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      layoutStrings();
+    }
+
+    /* A pluck only sets the string vibrating around its FIXED home x.
+       Nothing ever moves a string's home position — strings cannot be
+       grabbed, dragged, or pushed sideways by a finger or pointer. */
+    function maxDisp() {
+      if (strings.length < 2) return 14;
+      return (strings[1].x - strings[0].x) * 0.36; /* well under half the gap: neighbours can never be reached */
+    }
+    function exciteString(s, yNorm, velocity, dirSign) {
+      var j0 = Math.round(yNorm * (NP - 1));
+      var sigma = 2.8, amp = (2.4 + velocity * 6.5) * (dirSign || 1);
+      for (var j = 1; j < NP - 1; j++) {
+        var d = (j - j0) / sigma;
+        s.vel[j] += amp * Math.exp(-d * d) * 0.5;
+      }
+      s.glow = Math.min(1.4, Math.max(s.glow, 0.45 + velocity));
+    }
+
+    function pluckString(s, yNorm, velocity, dirSign, force) {
+      var now = performance.now();
+      /* The anti-retrigger guards govern gesture/pointer crossing streams.
+         Deliberate single actions (keys, sound-preview buttons) pass
+         force=true so a fast deliberate retrigger is never swallowed. */
+      if (!force && now - s.lastHit < 45) return; /* global per-string guard */
+      s.lastHit = now;
+      if (state.playMode === "chords") { triggerChord(s, yNorm, velocity, dirSign, force); return; }
+      exciteString(s, yNorm, velocity, dirSign);
+      playNote(s.midi, velocity);
+      onNotePlayed(s, yNorm);
+    }
+
+    /* ---- Chord engine: the diatonic triad built on a scale degree ----
+       Chords are stacked in thirds inside the current key's diatonic
+       scale, so in major, ii and iii come out minor and vii diminished —
+       real diatonic harmony, not all-major triads. */
+    function diaIntervals() { return state.mode === "major" ? SCALES.majorDia : SCALES.minorDia; }
+    function degreeOfMidi(midi) {
+      var iv = diaIntervals();
+      var rel = midi - ROOT_MIDI;
+      var pc = ((rel % 12) + 12) % 12;
+      return { deg: iv.indexOf(pc), oct: Math.floor(rel / 12) };
+    }
+    function degreeNote(deg, oct) {
+      var iv = diaIntervals();
+      var o = oct + Math.floor(deg / 7);
+      var d = ((deg % 7) + 7) % 7;
+      return ROOT_MIDI + o * 12 + iv[d];
+    }
+    function chordFor(midi) {
+      var info = degreeOfMidi(midi);
+      var root = degreeNote(info.deg, info.oct);
+      var third = degreeNote(info.deg + 2, info.oct);
+      var fifth = degreeNote(info.deg + 4, info.oct);
+      var quality = "major";
+      if (third - root === 3) quality = (fifth - root === 6) ? "diminished" : "minor";
+      var romanBase = ["I", "II", "III", "IV", "V", "VI", "VII"][info.deg];
+      var roman = quality === "major" ? romanBase : romanBase.toLowerCase();
+      if (quality === "diminished") roman += "°";
+      return {
+        root: root, degree: info.deg, quality: quality, roman: roman,
+        name: NOTE_NAMES[root % 12] + " " + quality,
+        short: NOTE_NAMES[root % 12] + (quality === "minor" ? "m" : (quality === "diminished" ? "°" : "")),
+        notes: [root, third, fifth, degreeNote(info.deg + 7, info.oct)]
+      };
+    }
+
+    var lastChordAt = 0;
+    function triggerChord(s, yNorm, velocity, dirSign, force) {
+      var now = performance.now();
+      exciteString(s, yNorm, velocity * 0.7, dirSign);
+      if (!force && now - lastChordAt < 150) return; /* a full sweep fires one chord, not fifteen */
+      lastChordAt = now;
+      var chord = chordFor(s.midi);
+      var notes = chord.notes.slice();
+      if (dirSign < 0) notes.reverse(); /* strum direction follows crossing direction */
+      notes.forEach(function (m, i) {
+        setTimeout(function () { playNote(m, velocity * (1 - i * 0.07)); }, i * 30);
+      });
+      /* faint visible ripple on the immediate neighbours only — kept
+         small so a chord never shoves nearby strings sideways */
+      for (var off = -2; off <= 2; off++) {
+        if (off === 0) continue;
+        (function (target, delay, amp) {
+          if (!target) return;
+          setTimeout(function () { exciteString(target, yNorm, amp, dirSign); }, delay);
+        })(strings[s.idx + off], Math.abs(off) * 30, velocity * Math.max(0.06, 0.30 - Math.abs(off) * 0.11));
+      }
+      onChordPlayed(chord, s, yNorm);
+    }
+
+    var noteFlashEl = document.getElementById("note-flash");
+    var lastNoteEl = document.getElementById("last-note");
+    var flashTimer = null;
+    function flashReadout(text) {
+      noteFlashEl.textContent = text;
+      noteFlashEl.style.transition = "none"; noteFlashEl.style.opacity = "0.95";
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () {
+        noteFlashEl.style.transition = "opacity 700ms ease"; noteFlashEl.style.opacity = "0";
+      }, 60);
+    }
+    function onChordPlayed(chord, s, yNorm) {
+      lastNoteEl.textContent = chord.name;
+      flashReadout(chord.name);
+      floaters.push({ x: s.x, y: stringTop() + yNorm * (stringBottom() - stringTop()), text: chord.roman + " · " + chord.short, hue: s.hue, life: 1 });
+      if (floaters.length > 14) floaters.shift();
+    }
+    function onNotePlayed(s, yNorm) {
+      var name = noteName(s.midi);
+      lastNoteEl.textContent = name;
+      noteFlashEl.textContent = name;
+      noteFlashEl.style.transition = "none"; noteFlashEl.style.opacity = "0.95";
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(function () {
+        noteFlashEl.style.transition = "opacity 700ms ease"; noteFlashEl.style.opacity = "0";
+      }, 60);
+      floaters.push({ x: s.x, y: stringTop() + yNorm * (stringBottom() - stringTop()), text: name, hue: s.hue, life: 1 });
+      if (floaters.length > 14) floaters.shift();
+    }
+
+    function stepPhysics() {
+      /* Stiff springs + firm damping: the vibration is a tight, quick
+         oscillation around home that settles fast, and every particle's
+         displacement is hard-clamped to maxDisp() so no pluck, however
+         hard, can push a string into its neighbour's space. */
+      var tension = 0.46, damping = 0.945, cap = maxDisp();
+      for (var si = 0; si < strings.length; si++) {
+        var s = strings[si], d = s.disp, v = s.vel;
+        for (var j = 1; j < NP - 1; j++) v[j] += (d[j - 1] + d[j + 1] - 2 * d[j]) * tension;
+        for (var k = 1; k < NP - 1; k++) {
+          v[k] *= damping; d[k] += v[k];
+          if (d[k] > cap) { d[k] = cap; v[k] *= 0.35; }
+          else if (d[k] < -cap) { d[k] = -cap; v[k] *= 0.35; }
+        }
+        d[0] = 0; d[NP - 1] = 0; v[0] = 0; v[NP - 1] = 0;
+        s.glow *= 0.965;
+        s.near *= 0.90;
+      }
+    }
+
+    function drawStage(t) {
+      /* backdrop */
+      var bg = ctx.createLinearGradient(0, 0, 0, stageH);
+      bg.addColorStop(0, "#0d1420"); bg.addColorStop(0.55, "#0a0f18"); bg.addColorStop(1, "#080b11");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, stageW, stageH);
+      /* faint horizontal guides at octave roots */
+      ctx.strokeStyle = "rgba(160,180,210,0.07)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, stringTop()); ctx.lineTo(stageW, stringTop());
+      ctx.moveTo(0, stringBottom()); ctx.lineTo(stageW, stringBottom()); ctx.stroke();
+
+      var top = stringTop(), height = stringBottom() - top;
+      for (var si = 0; si < strings.length; si++) {
+        var s = strings[si];
+        var energy = 0;
+        for (var e = 0; e < NP; e++) energy += Math.abs(s.disp[e]);
+        energy = Math.min(1, energy / (NP * 2.2));
+        var bright = 0.34 + s.near * 0.45 + s.glow * 0.6 + energy * 0.35;
+        var light = 52 + Math.min(26, s.glow * 22 + energy * 16);
+        var col = "hsl(" + s.hue + ", 85%, " + light + "%)";
+
+        /* halo pass when excited */
+        if (s.glow > 0.06 || s.near > 0.25) {
+          ctx.beginPath();
+          for (var h = 0; h < NP; h++) {
+            var hy = top + (h / (NP - 1)) * height;
+            var hx = s.x + s.disp[h];
+            if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+          }
+          ctx.strokeStyle = "hsla(" + s.hue + ", 90%, 60%, " + (0.10 + s.glow * 0.16) + ")";
+          ctx.lineWidth = 7; ctx.stroke();
+        }
+        /* core string */
+        ctx.beginPath();
+        for (var j = 0; j < NP; j++) {
+          var y = top + (j / (NP - 1)) * height;
+          var sway = reducedMotion ? 0 : Math.sin(t * 0.0007 + j * 0.35 + si * 1.7) * 0.25;
+          var x = s.x + s.disp[j] + sway;
+          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = col; ctx.globalAlpha = Math.min(1, bright);
+        ctx.lineWidth = 1.6; ctx.stroke(); ctx.globalAlpha = 1;
+        /* particles */
+        ctx.fillStyle = col;
+        for (var p = 0; p < NP; p += 2) {
+          var py = top + (p / (NP - 1)) * height;
+          var px = s.x + s.disp[p];
+          ctx.globalAlpha = 0.35 + Math.min(0.6, Math.abs(s.disp[p]) * 0.12) + s.near * 0.2;
+          ctx.beginPath(); ctx.arc(px, py, 1.5, 0, 6.2832); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        /* string label at the TOP of each string (the hand cards sit at the
+           stage's bottom-left and must never cover what a string plays):
+           note name in Strings mode, chord degree in Chord mode */
+        ctx.textAlign = "center";
+        if (state.playMode === "chords") {
+          var ch = chordFor(s.midi);
+          ctx.font = "600 10.5px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = "hsla(" + s.hue + ", 70%, 74%, 0.9)";
+          ctx.fillText(ch.roman + " " + ch.short, s.x, stringTop() - 12);
+        } else {
+          ctx.font = "600 11px 'IBM Plex Mono', monospace";
+          ctx.fillStyle = "hsla(" + s.hue + ", 70%, 74%, 0.85)";
+          ctx.fillText(noteName(s.midi), s.x, stringTop() - 12);
+        }
+      }
+
+      /* selection markers (SILENT): a hollow ring — this point can
+         pre-light strings but can never make one sound */
+      selectors.forEach(function (pt) {
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 9, 0, 6.2832);
+        ctx.strokeStyle = "rgba(220,232,245,0.85)"; ctx.lineWidth = 1.8; ctx.stroke();
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, 6.2832);
+        ctx.fillStyle = "rgba(220,232,245,0.75)"; ctx.fill();
+      });
+      /* pick markers (PLAYING): a solid amber puck with a diamond core —
+         the one point whose crossings fire */
+      trackers.forEach(function (tr) {
+        ctx.beginPath(); ctx.arc(tr.x, tr.y, 13, 0, 6.2832);
+        ctx.fillStyle = "rgba(232,163,61,0.22)"; ctx.fill();
+        ctx.strokeStyle = "rgba(232,163,61,0.9)"; ctx.lineWidth = 1.6; ctx.stroke();
+        ctx.save();
+        ctx.translate(tr.x, tr.y); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = "#f5b93f";
+        ctx.fillRect(-5.2, -5.2, 10.4, 10.4);
+        ctx.strokeStyle = "rgba(20,14,2,0.65)"; ctx.lineWidth = 1.2;
+        ctx.strokeRect(-5.2, -5.2, 10.4, 10.4);
+        ctx.restore();
+      });
+
+      /* floating note labels */
+      ctx.font = "600 13px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+      for (var fi = floaters.length - 1; fi >= 0; fi--) {
+        var f = floaters[fi];
+        f.life -= 0.016; f.y -= 0.55;
+        if (f.life <= 0) { floaters.splice(fi, 1); continue; }
+        ctx.fillStyle = "hsla(" + f.hue + ", 85%, 76%, " + (f.life * 0.9) + ")";
+        ctx.fillText(f.text, f.x, f.y);
+      }
+    }
+
+    /* ---------------- Crossing detection & the pinch clutch -------
+       Two kinds of point, kept strictly apart:
+       - SELECTORS (silent): the un-pinched index fingertip, or an
+         un-pressed mouse. They only pre-light the nearest string via
+         updateNear — feedSelector never tests crossings, so transit
+         across the whole harp is always silent.
+       - TRACKERS (the pick): the thumb–index pinch midpoint while the
+         pluck hand pinches, or a pressed mouse/touch drag. Only these
+         points test crossings and can make a string sound.
+       A hit = the pick's path segment crossing the string's x, inside
+       the string's span. Velocity from crossing speed; 80 ms cooldown
+       per pick+string. (Gesture Synth's documented scheme.) */
+    var trackers = new Map(); /* id -> {x,y,px,py,cool:Map} — firing pick points only */
+    var selectors = new Map(); /* id -> {x,y} — silent selection points only */
+    function feedTracker(id, x, y) {
+      var tr = trackers.get(id);
+      if (!tr) { tr = { x: x, y: y, px: x, py: y, cool: new Map() }; trackers.set(id, tr); }
+      tr.px = tr.x; tr.py = tr.y; tr.x = x; tr.y = y;
+      testCrossings(id, tr);
+      updateNear(tr);
+    }
+    function dropTracker(id) { trackers.delete(id); }
+    function feedSelector(id, x, y) {
+      selectors.set(id, { x: x, y: y });
+      updateNear({ x: x, y: y });
+    }
+    function dropSelector(id) { selectors.delete(id); }
+
+    /* Clutch state badge: silent selection vs pinching/pressed play. */
+    var clutchEl = document.getElementById("clutch-indicator");
+    var clutchTextEl = document.getElementById("clutch-text");
+    var clutchPlaying = null;
+    function setClutch(playing) {
+      if (clutchPlaying === playing) return;
+      clutchPlaying = playing;
+      clutchEl.classList.toggle("playing", playing);
+      clutchTextEl.textContent = playing ? "Pinching — playing" : "Moving — silent · pinch to play";
+    }
+    function updateNear(tr) {
+      for (var i = 0; i < strings.length; i++) {
+        if (Math.abs(tr.x - strings[i].x) < 30 && tr.y > stringTop() - 14 && tr.y < stringBottom() + 14) {
+          strings[i].near = Math.min(1, strings[i].near + 0.35);
+        }
+      }
+    }
+    function testCrossings(id, tr) {
+      var now = performance.now();
+      var top = stringTop(), height = stringBottom() - top;
+      if (tr.y < top - 20 || tr.y > stringBottom() + 20) return;
+      var dx = tr.x - tr.px;
+      if (Math.abs(dx) < 2.5) return;
+      for (var i = 0; i < strings.length; i++) {
+        var s = strings[i];
+        var crossed = (tr.px - s.x) * (tr.x - s.x) < 0;
+        if (!crossed) continue;
+        var last = tr.cool.get(i) || 0;
+        if (now - last < 80) continue;
+        tr.cool.set(i, now);
+        var frac = (s.x - tr.px) / dx;
+        var cy = tr.py + (tr.y - tr.py) * frac;
+        if (cy < top - 6 || cy > stringBottom() + 6) continue;
+        var speed = Math.abs(dx);
+        var velocity = Math.max(0.22, Math.min(1, 0.22 + speed / 52));
+        pluckString(s, Math.max(0, Math.min(1, (cy - top) / height)), velocity, dx > 0 ? 1 : -1);
+      }
+    }
+
+    /* ---------------- Pointer & keyboard input ---------------- */
+    var pointerActive = false;
+    function stagePos(evt) {
+      var r = canvas.getBoundingClientRect();
+      return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+    }
+    canvas.addEventListener("pointerdown", function (e) {
+      ensureAudio();
+      pointerActive = true;
+      canvas.setPointerCapture(e.pointerId);
+      var p = stagePos(e);
+      /* Pressing is the clutch: the point stops being a silent selector
+         and becomes the pick. It starts fresh at the press point, so
+         the press itself fires nothing it happens to land on. */
+      dropSelector("pointer");
+      dropTracker("pointer");
+      feedTracker("pointer", p.x, p.y);
+      if (!state.cameraOn) setClutch(true);
+    });
+    canvas.addEventListener("pointermove", function (e) {
+      var p = stagePos(e);
+      /* Un-pressed = silent selection only (pre-light, never a note);
+         pressed = the pick, crossings fire. Same clutch as the hand. */
+      if (pointerActive) feedTracker("pointer", p.x, p.y);
+      else feedSelector("pointer", p.x, p.y);
+    });
+    function endPointer() {
+      pointerActive = false;
+      dropTracker("pointer");
+      if (!state.cameraOn) setClutch(false);
+    }
+    canvas.addEventListener("pointerup", endPointer);
+    canvas.addEventListener("pointercancel", endPointer);
+    canvas.addEventListener("pointerleave", function () { if (!pointerActive) dropSelector("pointer"); });
+
+    window.addEventListener("keydown", function (e) {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      var tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      var idx = KEY_LETTERS.indexOf(e.key.toLowerCase());
+      if (idx >= 0 && idx < strings.length) {
+        ensureAudio();
+        pluckString(strings[idx], 0.3 + Math.random() * 0.4, 0.75, 1, true);
+      }
+    });
+    </script>
+    <script>
+    "use strict";
+    /* ---------------- Hand tracking & gesture logic ----------------
+       Pluck hand: fingertips feed the crossing detector.
+       Harmony hand: whole-hand shapes only — open palm = major,
+       fist = minor, pinch = sustain, hand height = filter brightness.
+       A new shape must hold ~120 ms before it commits (anti-flicker). */
+    var TIP_IDS = [4, 8, 12, 16, 20];
+    var PIP_IDS = [6, 10, 14, 18];
+    var hands = null, videoEl = document.getElementById("cam-pip");
+    var videoStream = null, sendingFrame = false, lastVideoTime = -1;
+
+    var gesture = {
+      modeCandidate: null, modeSince: 0,
+      pinchCandidate: false, pinchSince: 0,
+      filterTarget: 5200,
+      pluckSeen: false, modSeen: false,
+      pluckShape: "—", modShape: "—",
+      pluckPinching: false
+    };
+
+    /* Pluck-hand pinch clutch, with a little hysteresis so the clutch
+       doesn't chatter at the threshold: it engages when thumb tip and
+       index tip come close (scaled to hand size, so it works near or
+       far from the camera) and releases at a slightly wider gap. */
+    function pluckHandPinching(lm) {
+      var d = dist2d(lm[4], lm[8]);
+      var handScale = dist2d(lm[0], lm[9]) || 0.15;
+      var engage = Math.min(0.085, Math.max(0.045, handScale * 0.38));
+      var release = engage * 1.3;
+      return gesture.pluckPinching ? d < release : d < engage;
+    }
+
+    function dist2d(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
+    function extendedCount(lm) {
+      var wrist = lm[0], n = 0;
+      for (var i = 0; i < 4; i++) {
+        if (dist2d(lm[TIP_IDS[i + 1]], wrist) > dist2d(lm[PIP_IDS[i]], wrist) * 1.14) n++;
+      }
+      return n;
+    }
+    function classifyShape(lm) {
+      var pinch = dist2d(lm[4], lm[8]) < 0.05;
+      var ext = extendedCount(lm);
+      if (pinch && ext <= 2) return "pinch";
+      if (ext >= 3) return "open";
+      if (ext <= 1) return "fist";
+      return "other";
+    }
+
+    function commitMode(mode, fromHand) {
+      if (state.mode === mode) return;
+      state.mode = mode;
+      resetReadout(); /* a name computed in the old key no longer applies */
+      buildStrings();
+      syncModeButtons();
+      updateKeyChip();
+      if (fromHand) setStatus("Harmony hand set <b>" + (mode === "major" ? "major" : "minor") + "</b> — strings retuned to C " + mode + ".");
+    }
+
+    function processHands(results) {
+      var seen = { pluck: false, mod: false };
+      var lists = results.multiHandLandmarks || [];
+      var labels = results.multiHandedness || [];
+      for (var h = 0; h < lists.length; h++) {
+        var lm = lists[h];
+        var label = (labels[h] && labels[h].label) || (h === 0 ? "Right" : "Left");
+        var isPluck = lists.length === 1 ? true : (label === state.pluckSide);
+        var role = isPluck ? "pluck" : "mod";
+        seen[role] = true;
+        if (isPluck) {
+          gesture.pluckShape = classifyShape(lm);
+          /* THE CLUTCH: only two landmarks of this hand are ever read —
+             thumb tip (4) and index tip (8). Middle, ring and pinky
+             fingers select nothing and trigger nothing, in any state.
+             - No pinch: the index fingertip is a silent SELECTOR.
+             - Pinch held: the thumb–index midpoint is the PICK, the
+               single point whose crossings fire. The pick starts fresh
+               at the pinch point, so engaging the clutch on top of a
+               string doesn't fire it — you must cross from there. */
+          var pinching = pluckHandPinching(lm);
+          gesture.pluckPinching = pinching;
+          if (pinching) {
+            dropSelector("hand-select");
+            var mx = (1 - (lm[4].x + lm[8].x) / 2) * stageW;
+            var my = ((lm[4].y + lm[8].y) / 2) * stageH;
+            feedTracker("pick", mx, my);
+          } else {
+            dropTracker("pick");
+            feedSelector("hand-select", (1 - lm[8].x) * stageW, lm[8].y * stageH);
+          }
+          setClutch(pinching);
+        } else {
+          var shape = classifyShape(lm);
+          gesture.modShape = shape;
+          var now = performance.now();
+          /* mode from open / fist, with stability commit */
+          var cand = shape === "open" ? "major" : (shape === "fist" ? "minor" : null);
+          if (cand !== gesture.modeCandidate) { gesture.modeCandidate = cand; gesture.modeSince = now; }
+          if (cand && now - gesture.modeSince > 120) commitMode(cand, true);
+          /* pinch = sustain */
+          var pinching = shape === "pinch";
+          if (pinching !== gesture.pinchCandidate) { gesture.pinchCandidate = pinching; gesture.pinchSince = now; }
+          if (now - gesture.pinchSince > 100) state.sustain = pinching;
+          /* height -> filter brightness (wrist y: high hand = bright) */
+          var wy = lm[0].y;
+          var frac = Math.max(0, Math.min(1, (0.88 - wy) / 0.68));
+          gesture.filterTarget = 500 * Math.pow(7500 / 500, frac);
+          /* the harmony hand's fingers are never selectors or picks —
+             nothing from this hand is fed to either point map */
+        }
+      }
+      if (!seen.pluck) {
+        dropTracker("pick");
+        dropSelector("hand-select");
+        gesture.pluckPinching = false;
+        if (!pointerActive) setClutch(false);
+      }
+      gesture.pluckSeen = seen.pluck; gesture.modSeen = seen.mod;
+      updateHandCards();
+    }
+
+    var pluckStateEl = document.getElementById("pluck-state");
+    var pluckSubEl = document.getElementById("pluck-sub");
+    var modStateEl = document.getElementById("mod-state");
+    var modSubEl = document.getElementById("mod-sub");
+    function shapeWords(shape, isMod) {
+      if (shape === "open") return isMod ? "Open palm — major" : "Open palm";
+      if (shape === "fist") return isMod ? "Fist — minor" : "Fist";
+      if (shape === "pinch") return isMod ? "Pinch — sustain" : "Pinch";
+      return "Tracking";
+    }
+    function updateHandCards() {
+      if (!state.cameraOn) return;
+      if (gesture.pluckSeen && gesture.pluckPinching) {
+        pluckStateEl.textContent = "Pinching — playing";
+        pluckSubEl.textContent = "Sweep the pinch across a string · release to go silent";
+      } else if (gesture.pluckSeen) {
+        pluckStateEl.textContent = "Moving — silent";
+        pluckSubEl.textContent = "Index finger selects · pinch thumb to index to play";
+      } else {
+        pluckStateEl.textContent = "Not seen";
+        pluckSubEl.textContent = "Bring it into the frame";
+      }
+      if (gesture.modSeen) {
+        modStateEl.textContent = shapeWords(gesture.modShape, true);
+        modSubEl.textContent = state.sustain ? "Sustain held — notes ring long" : "Open palm = major · fist = minor";
+      } else {
+        modStateEl.textContent = "Not seen";
+        modSubEl.textContent = "Buttons below set the harmony instead";
+      }
+    }
+
+    /* ---------------- Camera ---------------- */
+    var btnCamera = document.getElementById("btn-camera");
+    var camDot = document.getElementById("cam-dot");
+    var camState = document.getElementById("cam-state");
+    var statusLine = document.getElementById("status-line");
+    function setStatus(html) { statusLine.innerHTML = html; }
+
+    function setCamUI(on, label, warn) {
+      camState.textContent = label;
+      camDot.className = "dot" + (on ? " on" : (warn ? " warn" : ""));
+      btnCamera.textContent = on ? "Stop camera" : "Start camera";
+      btnCamera.setAttribute("aria-pressed", on ? "true" : "false");
+      videoEl.style.display = on ? "block" : "none";
+    }
+    function initHands() {
+      if (hands) return true;
+      if (typeof window.Hands === "undefined") return false;
+      hands = new window.Hands({
+        locateFile: function (f) { return "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/" + f; }
+      });
+      hands.setOptions({
+        maxNumHands: 2, modelComplexity: 0,
+        minDetectionConfidence: 0.6, minTrackingConfidence: 0.5
+      });
+      hands.onResults(processHands);
+      return true;
+    }
+    function pumpFrames() {
+      if (!state.cameraOn) return;
+      if (videoEl.readyState >= 2 && videoEl.currentTime !== lastVideoTime && !sendingFrame) {
+        lastVideoTime = videoEl.currentTime;
+        sendingFrame = true;
+        hands.send({ image: videoEl }).catch(function () {}).then(function () { sendingFrame = false; });
+      }
+      requestAnimationFrame(pumpFrames);
+    }
+    function startCamera() {
+      ensureAudio();
+      if (!initHands()) {
+        setCamUI(false, "Tracking unavailable", true);
+        setStatus("<b>Hand-tracking library didn't load</b> (it comes from a CDN). The harp still plays — drag across the strings or use the keys.");
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCamUI(false, "Camera unavailable", true);
+        setStatus("<b>This browser can't open a camera here.</b> The harp still plays — drag across the strings or use the keys.");
+        return;
+      }
+      setStatus("Opening the camera…");
+      navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false })
+        .then(function (stream) {
+          videoStream = stream;
+          videoEl.srcObject = stream;
+          return videoEl.play();
+        })
+        .then(function () {
+          state.cameraOn = true;
+          setCamUI(true, "Camera on");
+          setStatus("<b>Camera on.</b> Move your pluck hand freely — it's silent while you get into position. <b>Pinch thumb to index finger on that hand to play</b>; release the pinch to move again. Harmony hand — open palm for major, fist for minor, pinch to sustain. Video is processed in this page only.");
+          pumpFrames();
+        })
+        .catch(function () {
+          setCamUI(false, "Camera blocked", true);
+          setStatus("<b>Camera permission was denied or no camera was found.</b> The harp still plays — drag across the strings or use the keys.");
+        });
+    }
+    function stopCamera() {
+      state.cameraOn = false;
+      if (videoStream) { videoStream.getTracks().forEach(function (t) { t.stop(); }); videoStream = null; }
+      videoEl.srcObject = null;
+      dropTracker("pick");
+      dropSelector("hand-select");
+      gesture.pluckPinching = false;
+      if (!pointerActive) setClutch(false);
+      setCamUI(false, "Camera off");
+      pluckStateEl.textContent = "Not seen"; modStateEl.textContent = "Not seen";
+      pluckSubEl.textContent = "Index finger selects — silent · pinch to play";
+      modSubEl.textContent = "Open palm = major · fist = minor";
+      setStatus("Camera off. Drag across the strings, or play keys <b>1</b>–<b>0</b> <b>Q</b> <b>W</b> <b>E</b> <b>R</b> <b>T</b>.");
+    }
+    btnCamera.addEventListener("click", function () { state.cameraOn ? stopCamera() : startCamera(); });
+
+    /* ---------------- Controls ---------------- */
+    var keyStateEl = document.getElementById("key-state");
+    function updateKeyChip() { keyStateEl.textContent = "C " + state.mode + (state.scaleType === "penta" ? " pentatonic" : ""); }
+    var modeMajor = document.getElementById("mode-major"), modeMinor = document.getElementById("mode-minor");
+    function syncModeButtons() {
+      modeMajor.setAttribute("aria-pressed", state.mode === "major" ? "true" : "false");
+      modeMinor.setAttribute("aria-pressed", state.mode === "minor" ? "true" : "false");
+    }
+    modeMajor.addEventListener("click", function () { commitMode("major", false); });
+    modeMinor.addEventListener("click", function () { commitMode("minor", false); });
+
+    var playStringsBtn = document.getElementById("play-strings"), playChordsBtn = document.getElementById("play-chords");
+    function resetReadout() { document.getElementById("last-note").textContent = "—"; }
+    function setPlayMode(pm) {
+      if (state.playMode !== pm) resetReadout(); /* never show a note name under "Last chord", or vice versa */
+      state.playMode = pm;
+      playStringsBtn.setAttribute("aria-pressed", pm === "strings" ? "true" : "false");
+      playChordsBtn.setAttribute("aria-pressed", pm === "chords" ? "true" : "false");
+      document.getElementById("last-label").textContent = pm === "chords" ? "Last chord" : "Last note";
+      setStatus(pm === "chords"
+        ? "<b>Chord mode.</b> Crossing any string plays the full chord built on that string's degree — the labels under the strings show what each one triggers."
+        : "<b>Strings mode.</b> Each string plays its own note.");
+    }
+    playStringsBtn.addEventListener("click", function () { setPlayMode("strings"); });
+    playChordsBtn.addEventListener("click", function () { setPlayMode("chords"); });
+
+    var scalePenta = document.getElementById("scale-penta"), scaleDia = document.getElementById("scale-dia");
+    function setScale(type) {
+      if (state.scaleType !== type) resetReadout();
+      state.scaleType = type; buildStrings(); updateKeyChip();
+      scalePenta.setAttribute("aria-pressed", type === "penta" ? "true" : "false");
+      scaleDia.setAttribute("aria-pressed", type === "dia" ? "true" : "false");
+    }
+    scalePenta.addEventListener("click", function () { setScale("penta"); });
+    scaleDia.addEventListener("click", function () { setScale("dia"); });
+
+    var soundPluck = document.getElementById("sound-pluck"), soundGlass = document.getElementById("sound-glass");
+    function setSound(s2) {
+      state.sound = s2;
+      soundPluck.setAttribute("aria-pressed", s2 === "pluck" ? "true" : "false");
+      soundGlass.setAttribute("aria-pressed", s2 === "glass" ? "true" : "false");
+    }
+    soundPluck.addEventListener("click", function () { setSound("pluck"); ensureAudio(); pluckString(strings[7], 0.5, 0.7, 1, true); });
+    soundGlass.addEventListener("click", function () { setSound("glass"); ensureAudio(); pluckString(strings[7], 0.5, 0.7, 1, true); });
+
+    document.getElementById("vol").addEventListener("input", function (e) {
+      state.volume = e.target.value / 100;
+      if (masterGain) masterGain.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
+    });
+    document.getElementById("btn-swap").addEventListener("click", function () {
+      state.pluckSide = state.pluckSide === "Right" ? "Left" : "Right";
+      document.getElementById("pluck-side-label").textContent = state.pluckSide.toLowerCase();
+      document.getElementById("mod-side-label").textContent = state.pluckSide === "Right" ? "left" : "right";
+      setStatus("Hands swapped — the <b>" + state.pluckSide.toLowerCase() + " hand</b> now plucks, the other shapes the harmony.");
+    });
+
+    /* ---------------- Main loop ---------------- */
+    function frame(t) {
+      stepPhysics();
+      if (actx && filterNode) {
+        var cur = filterNode.frequency.value;
+        filterNode.frequency.value = cur + (gesture.filterTarget - cur) * 0.08;
+      }
+      drawStage(t || 0);
+      requestAnimationFrame(frame);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+    buildStrings();
+    updateKeyChip();
+    requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
