@@ -233,6 +233,15 @@
           </div>
         </div>
         <div class="ctl-group">
+          <span class="ctl-label" id="lbl-visual">Strings look</span>
+          <div class="seg" role="group" aria-labelledby="lbl-visual">
+            <button class="seg-btn" id="visual-particles" aria-pressed="true">Particles</button>
+            <button class="seg-btn" id="visual-columns" aria-pressed="false">Glowing Columns</button>
+            <button class="seg-btn" id="visual-sparks" aria-pressed="false">Sparks</button>
+            <button class="seg-btn" id="visual-ribbons" aria-pressed="false">Ribbons</button>
+          </div>
+        </div>
+        <div class="ctl-group">
           <label class="ctl-label" for="vol">Volume</label>
           <input type="range" id="vol" min="0" max="100" value="80" />
         </div>
@@ -250,6 +259,7 @@
             <li><b>Harmony hand:</b> hold an <b>open palm for major</b>, make a <b>fist for minor</b>. The strings retune the moment the new shape settles. <b>Pinch</b> on this hand sustains — notes ring longer while you hold it — and raising or lowering it brightens or darkens the tone.</li>
             <li><b>Chord mode</b> (Play toggle below): crossing a string with the pinch held plays the <b>whole chord</b> built on that string's degree instead of one note.</li>
             <li><b>Mouse / touch:</b> moving without pressing is silent selection, exactly like the un-pinched hand; <b>press and drag</b> is the pinch — crossings fire while pressed.</li>
+            <li><b>Strings look</b> (toggle in the controls): <b>Particles</b> — the original dotted particle strings, the default. <b>Glowing Columns</b> — each string becomes a soft beam of light with a glowing core and feathered edges that flares where you pluck it. <b>Sparks</b> — strings shrink to faint guide lines and each pluck bursts a spray of sparks from the pluck point. <b>Ribbons</b> — each string flows like a ribbon of light, and a pluck sends a bright pulse travelling along it. Switch any time, even mid-play: only the rendering changes — the strings, selection, pinch clutch, chords and sound stay exactly the same, and switching fires no notes.</li>
           </ul>
         </section>
         <section class="card">
@@ -300,6 +310,7 @@
       mode: "major",            /* "major" | "minor" */
       scaleType: "penta",       /* "penta" | "dia" */
       sound: "pluck",           /* "pluck" | "glass" */
+      visual: "particles",      /* "particles" | "columns" | "sparks" | "ribbons" — rendering only */
       sustain: false,
       pluckSide: "Right",       /* anatomical label of the plucking hand */
       cameraOn: false,
@@ -420,6 +431,7 @@
     var NP = 46; /* particles per string */
     var strings = [];
     var floaters = []; /* floating note labels */
+    var sparks = []; /* Sparks look: burst particles, {x,y,vx,vy,life,maxLife,hue,size} */
     var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     function buildStrings() {
@@ -432,7 +444,9 @@
           hue: DEGREE_HUES[info.degree % DEGREE_HUES.length],
           disp: new Float32Array(NP), vel: new Float32Array(NP),
           glow: old[i] ? old[i].glow : 0, near: 0,
-          lastHit: 0, x: 0
+          lastHit: 0, x: 0,
+          flashes: old[i] && old[i].flashes ? old[i].flashes : [], /* Glowing Columns flares */
+          pulses: old[i] && old[i].pulses ? old[i].pulses : []    /* Ribbons travelling pulses */
         };
         if (old[i]) { s.disp.set(old[i].disp); s.vel.set(old[i].vel); }
         strings.push(s);
@@ -472,6 +486,60 @@
         s.vel[j] += amp * Math.exp(-d * d) * 0.5;
       }
       s.glow = Math.min(1.4, Math.max(s.glow, 0.45 + velocity));
+      /* Visual-only feedback for the non-particle looks, sized by the
+         same pluck velocity. None of this touches detection or sound. */
+      if (state.visual === "columns") {
+        s.flashes.push({ y: yNorm, life: 1, velocity: velocity, dir: dirSign || 1 });
+        if (s.flashes.length > 5) s.flashes.shift();
+      } else if (state.visual === "sparks") {
+        spawnSparks(s, yNorm, velocity);
+      } else if (state.visual === "ribbons") {
+        s.pulses.push({ y: yNorm, dir: 1, life: 1, velocity: velocity });
+        s.pulses.push({ y: yNorm, dir: -1, life: 0.85, velocity: velocity });
+        if (s.pulses.length > 6) s.pulses.splice(0, s.pulses.length - 6);
+      }
+    }
+    function spawnSparks(s, yNorm, velocity) {
+      var top = stringTop(), height = stringBottom() - top;
+      var cx = s.x, cy = top + yNorm * height;
+      var count = Math.round(10 + velocity * 26);
+      for (var i = 0; i < count; i++) {
+        var ang = Math.random() * Math.PI * 2;
+        var spd = 0.5 + Math.random() * (1.2 + velocity * 2.6);
+        var life = 0.65 + Math.random() * 0.75;
+        sparks.push({
+          x: cx, y: cy,
+          vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd - 0.7,
+          life: life, maxLife: life, hue: s.hue,
+          size: 1 + Math.random() * 1.9 + velocity * 1.1
+        });
+      }
+      if (sparks.length > 900) sparks.splice(0, sparks.length - 900);
+    }
+    function stepVisuals() {
+      /* Glowing Columns flares fade (and drift a little along the beam) */
+      for (var i = 0; i < strings.length; i++) {
+        var fl = strings[i].flashes;
+        for (var f = fl.length - 1; f >= 0; f--) {
+          fl[f].life -= 0.018;
+          fl[f].y += fl[f].dir * 0.0015;
+          if (fl[f].life <= 0) fl.splice(f, 1);
+        }
+        var pu = strings[i].pulses;
+        for (var p = pu.length - 1; p >= 0; p--) {
+          pu[p].y += pu[p].dir * (0.011 + pu[p].velocity * 0.010);
+          pu[p].life -= 0.016;
+          if (pu[p].life <= 0 || pu[p].y < -0.05 || pu[p].y > 1.05) pu.splice(p, 1);
+        }
+      }
+      /* Sparks drift, fall slowly, and fade */
+      for (var k = sparks.length - 1; k >= 0; k--) {
+        var sp = sparks[k];
+        sp.x += sp.vx; sp.y += sp.vy;
+        sp.vx *= 0.985; sp.vy = sp.vy * 0.985 + 0.045; /* gentle gravity */
+        sp.life -= 0.016;
+        if (sp.life <= 0) sparks.splice(k, 1);
+      }
     }
 
     function pluckString(s, yNorm, velocity, dirSign, force) {
@@ -607,6 +675,7 @@
       ctx.moveTo(0, stringBottom()); ctx.lineTo(stageW, stringBottom()); ctx.stroke();
 
       var top = stringTop(), height = stringBottom() - top;
+      var gapPx = strings.length > 1 ? (strings[1].x - strings[0].x) : 48;
       for (var si = 0; si < strings.length; si++) {
         var s = strings[si];
         var energy = 0;
@@ -616,36 +685,135 @@
         var light = 52 + Math.min(26, s.glow * 22 + energy * 16);
         var col = "hsl(" + s.hue + ", 85%, " + light + "%)";
 
-        /* halo pass when excited */
-        if (s.glow > 0.06 || s.near > 0.25) {
-          ctx.beginPath();
-          for (var h = 0; h < NP; h++) {
-            var hy = top + (h / (NP - 1)) * height;
-            var hx = s.x + s.disp[h];
-            if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+        if (state.visual === "columns") {
+          /* ===== Glowing Columns: a soft vertical beam per string —
+             glowing core, feathered edges (horizontal gradient to
+             transparent). The selected column holds a stronger steady
+             glow; a pluck flares the beam at the pluck height and the
+             flare expands and fades along it. ===== */
+          var cw = gapPx * 0.92;
+          var baseA = 0.10 + s.near * 0.30 + s.glow * 0.20 + energy * 0.08;
+          var grad = ctx.createLinearGradient(s.x - cw / 2, 0, s.x + cw / 2, 0);
+          grad.addColorStop(0, "hsla(" + s.hue + ", 90%, 58%, 0)");
+          grad.addColorStop(0.22, "hsla(" + s.hue + ", 90%, 58%, " + (baseA * 0.55) + ")");
+          grad.addColorStop(0.5, "hsla(" + s.hue + ", 92%, 64%, " + Math.min(0.85, baseA + 0.07) + ")");
+          grad.addColorStop(0.78, "hsla(" + s.hue + ", 90%, 58%, " + (baseA * 0.55) + ")");
+          grad.addColorStop(1, "hsla(" + s.hue + ", 90%, 58%, 0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(s.x - cw / 2, top, cw, height);
+          /* pluck flares */
+          for (var cf = 0; cf < s.flashes.length; cf++) {
+            var fl2 = s.flashes[cf];
+            var fy = top + fl2.y * height;
+            var fr = 24 + (1 - fl2.life) * 95; /* flare spreads along the beam as it fades */
+            var fa = fl2.life * (0.30 + fl2.velocity * 0.55);
+            ctx.beginPath(); ctx.ellipse(s.x, fy, cw * 0.48, fr, 0, 0, 6.2832);
+            ctx.fillStyle = "hsla(" + s.hue + ", 95%, 66%, " + (fa * 0.45) + ")"; ctx.fill();
+            ctx.beginPath(); ctx.ellipse(s.x, fy, cw * 0.30, fr * 0.52, 0, 0, 6.2832);
+            ctx.fillStyle = "hsla(" + s.hue + ", 98%, 76%, " + fa + ")"; ctx.fill();
           }
-          ctx.strokeStyle = "hsla(" + s.hue + ", 90%, 60%, " + (0.10 + s.glow * 0.16) + ")";
-          ctx.lineWidth = 7; ctx.stroke();
+          /* glowing core — unmistakably brighter on the selected column */
+          if (s.near > 0.04 || s.glow > 0.05) {
+            ctx.beginPath(); ctx.moveTo(s.x, top); ctx.lineTo(s.x, top + height);
+            ctx.strokeStyle = "hsla(" + s.hue + ", 95%, 62%, " + (0.10 + s.near * 0.16 + s.glow * 0.14) + ")";
+            ctx.lineWidth = 9; ctx.stroke();
+          }
+          ctx.beginPath(); ctx.moveTo(s.x, top); ctx.lineTo(s.x, top + height);
+          ctx.strokeStyle = "hsla(" + s.hue + ", 96%, " + (72 + s.near * 10) + "%, " + Math.min(1, 0.55 + s.near * 0.45 + s.glow * 0.30) + ")";
+          ctx.lineWidth = 2 + s.near * 2.2 + s.glow * 1.4; ctx.stroke();
+        } else if (state.visual === "sparks") {
+          /* ===== Sparks: faint guide lines only. The pluck feedback
+             lives in the burst particles drawn after this loop. The
+             selected guide is thicker, brighter, and haloed so it
+             stays unmistakable. ===== */
+          if (s.near > 0.03 || s.glow > 0.06) {
+            ctx.fillStyle = "hsla(" + s.hue + ", 92%, 62%, " + (0.07 + s.near * 0.15 + s.glow * 0.08) + ")";
+            ctx.fillRect(s.x - 5, top, 10, height);
+          }
+          ctx.beginPath(); ctx.moveTo(s.x, top); ctx.lineTo(s.x, top + height);
+          ctx.strokeStyle = "hsla(" + s.hue + ", 85%, 72%, " + Math.min(1, 0.30 + s.near * 0.58 + s.glow * 0.28) + ")";
+          ctx.lineWidth = 1 + s.near * 2.4 + s.glow * 0.9; ctx.stroke();
+        } else if (state.visual === "ribbons") {
+          /* ===== Ribbons: a flowing band of light per string. Its
+             centre follows the same capped vibration as the particle
+             strings plus a gentle idle undulation; a pluck sends a
+             bright pulse travelling along it (drawn from s.pulses). ===== */
+          var centers = [];
+          var halfBase = 5.5 + s.near * 3.2 + s.glow * 2.2;
+          for (var rj = 0; rj < NP; rj++) {
+            var und = reducedMotion ? 0 : Math.sin(t * 0.0009 + rj * 0.30 + si * 1.7) * 2.2;
+            centers.push(s.x + s.disp[rj] + und);
+          }
+          var rgrad = ctx.createLinearGradient(0, top, 0, top + height);
+          var ra = 0.34 + s.near * 0.28 + s.glow * 0.22;
+          rgrad.addColorStop(0, "hsla(" + s.hue + ", 88%, 58%, " + ra + ")");
+          rgrad.addColorStop(0.5, "hsla(" + s.hue + ", 90%, 68%, " + Math.min(0.92, ra + 0.16) + ")");
+          rgrad.addColorStop(1, "hsla(" + s.hue + ", 88%, 54%, " + ra + ")");
+          ctx.beginPath();
+          for (var lj = 0; lj < NP; lj++) {
+            var ly = top + (lj / (NP - 1)) * height;
+            var hw = halfBase * (0.78 + 0.22 * Math.sin(t * 0.0012 + lj * 0.45 + si * 2.1));
+            if (lj === 0) ctx.moveTo(centers[lj] - hw, ly); else ctx.lineTo(centers[lj] - hw, ly);
+          }
+          for (var rj2 = NP - 1; rj2 >= 0; rj2--) {
+            var ry = top + (rj2 / (NP - 1)) * height;
+            var hw2 = halfBase * (0.78 + 0.22 * Math.sin(t * 0.0012 + rj2 * 0.45 + si * 2.1));
+            ctx.lineTo(centers[rj2] + hw2, ry);
+          }
+          ctx.closePath(); ctx.fillStyle = rgrad; ctx.fill();
+          /* bright spine */
+          ctx.beginPath();
+          for (var sj = 0; sj < NP; sj++) {
+            var sy = top + (sj / (NP - 1)) * height;
+            if (sj === 0) ctx.moveTo(centers[sj], sy); else ctx.lineTo(centers[sj], sy);
+          }
+          ctx.strokeStyle = "hsla(" + s.hue + ", 96%, 82%, " + Math.min(1, 0.55 + s.near * 0.40 + s.glow * 0.25) + ")";
+          ctx.lineWidth = 1.6; ctx.stroke();
+          /* travelling pluck pulses */
+          for (var pp = 0; pp < s.pulses.length; pp++) {
+            var pu2 = s.pulses[pp];
+            var pIdx = Math.max(0, Math.min(NP - 1, Math.round(pu2.y * (NP - 1))));
+            var pcx = centers[pIdx], pcy = top + pu2.y * height;
+            var pa = pu2.life * (0.35 + pu2.velocity * 0.55);
+            ctx.beginPath(); ctx.ellipse(pcx, pcy, halfBase + 7 + pu2.velocity * 6, 11, 0, 0, 6.2832);
+            ctx.fillStyle = "hsla(" + s.hue + ", 98%, 74%, " + (pa * 0.55) + ")"; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(pcx - halfBase - 2, pcy); ctx.lineTo(pcx + halfBase + 2, pcy);
+            ctx.strokeStyle = "hsla(" + s.hue + ", 100%, 88%, " + Math.min(1, pa + 0.15) + ")";
+            ctx.lineWidth = 3; ctx.stroke();
+          }
+        } else {
+          /* ===== Particles (default): the original particle strings ===== */
+          /* halo pass when excited */
+          if (s.glow > 0.06 || s.near > 0.25) {
+            ctx.beginPath();
+            for (var h = 0; h < NP; h++) {
+              var hy = top + (h / (NP - 1)) * height;
+              var hx = s.x + s.disp[h];
+              if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+            }
+            ctx.strokeStyle = "hsla(" + s.hue + ", 90%, 60%, " + (0.10 + s.glow * 0.16) + ")";
+            ctx.lineWidth = 7; ctx.stroke();
+          }
+          /* core string */
+          ctx.beginPath();
+          for (var j = 0; j < NP; j++) {
+            var y = top + (j / (NP - 1)) * height;
+            var sway = reducedMotion ? 0 : Math.sin(t * 0.0007 + j * 0.35 + si * 1.7) * 0.25;
+            var x = s.x + s.disp[j] + sway;
+            if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = col; ctx.globalAlpha = Math.min(1, bright);
+          ctx.lineWidth = 1.6; ctx.stroke(); ctx.globalAlpha = 1;
+          /* particles */
+          ctx.fillStyle = col;
+          for (var p = 0; p < NP; p += 2) {
+            var py = top + (p / (NP - 1)) * height;
+            var px = s.x + s.disp[p];
+            ctx.globalAlpha = 0.35 + Math.min(0.6, Math.abs(s.disp[p]) * 0.12) + s.near * 0.2;
+            ctx.beginPath(); ctx.arc(px, py, 1.5, 0, 6.2832); ctx.fill();
+          }
+          ctx.globalAlpha = 1;
         }
-        /* core string */
-        ctx.beginPath();
-        for (var j = 0; j < NP; j++) {
-          var y = top + (j / (NP - 1)) * height;
-          var sway = reducedMotion ? 0 : Math.sin(t * 0.0007 + j * 0.35 + si * 1.7) * 0.25;
-          var x = s.x + s.disp[j] + sway;
-          if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.strokeStyle = col; ctx.globalAlpha = Math.min(1, bright);
-        ctx.lineWidth = 1.6; ctx.stroke(); ctx.globalAlpha = 1;
-        /* particles */
-        ctx.fillStyle = col;
-        for (var p = 0; p < NP; p += 2) {
-          var py = top + (p / (NP - 1)) * height;
-          var px = s.x + s.disp[p];
-          ctx.globalAlpha = 0.35 + Math.min(0.6, Math.abs(s.disp[p]) * 0.12) + s.near * 0.2;
-          ctx.beginPath(); ctx.arc(px, py, 1.5, 0, 6.2832); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
         /* string label at the TOP of each string (the hand cards sit at the
            stage's bottom-left and must never cover what a string plays):
            note name in Strings mode, chord degree in Chord mode */
@@ -659,6 +827,19 @@
           ctx.font = "600 11px 'IBM Plex Mono', monospace";
           ctx.fillStyle = "hsla(" + s.hue + ", 70%, 74%, 0.85)";
           ctx.fillText(noteName(s.midi), s.x, stringTop() - 12);
+        }
+      }
+
+      /* Sparks look: burst particles (spawned at the exact pluck point,
+         sized by pluck velocity; they drift, fall slowly, and fade) */
+      if (state.visual === "sparks") {
+        for (var spi = 0; spi < sparks.length; spi++) {
+          var sp2 = sparks[spi];
+          var salpha = Math.max(0, sp2.life / sp2.maxLife) * 0.95;
+          ctx.beginPath(); ctx.arc(sp2.x, sp2.y, sp2.size, 0, 6.2832);
+          ctx.fillStyle = "hsla(" + sp2.hue + ", 96%, 74%, " + salpha + ")"; ctx.fill();
+          ctx.beginPath(); ctx.arc(sp2.x, sp2.y, sp2.size * 0.45, 0, 6.2832);
+          ctx.fillStyle = "hsla(" + sp2.hue + ", 100%, 88%, " + salpha + ")"; ctx.fill();
         }
       }
 
@@ -1100,9 +1281,30 @@
       setStatus("Hands swapped — the <b>" + state.pluckSide.toLowerCase() + " hand</b> now plucks, the other shapes the harmony.");
     });
 
+    /* Strings look toggle — rendering only. Switching fires no notes,
+       retunes nothing, and leaves clutch, crossing detection, chord
+       mode, harmony, labels and sound untouched. */
+    var visualBtns = {
+      particles: document.getElementById("visual-particles"),
+      columns: document.getElementById("visual-columns"),
+      sparks: document.getElementById("visual-sparks"),
+      ribbons: document.getElementById("visual-ribbons")
+    };
+    var visualNames = { particles: "Particles", columns: "Glowing Columns", sparks: "Sparks", ribbons: "Ribbons" };
+    function setVisual(v) {
+      state.visual = v;
+      for (var k in visualBtns) visualBtns[k].setAttribute("aria-pressed", k === v ? "true" : "false");
+      setStatus("<b>Strings look: " + visualNames[v] + ".</b> Same strings, same playing — only the light changes.");
+    }
+    visualBtns.particles.addEventListener("click", function () { setVisual("particles"); });
+    visualBtns.columns.addEventListener("click", function () { setVisual("columns"); });
+    visualBtns.sparks.addEventListener("click", function () { setVisual("sparks"); });
+    visualBtns.ribbons.addEventListener("click", function () { setVisual("ribbons"); });
+
     /* ---------------- Main loop ---------------- */
     function frame(t) {
       stepPhysics();
+      stepVisuals();
       if (actx && filterNode) {
         var cur = filterNode.frequency.value;
         filterNode.frequency.value = cur + (gesture.filterTarget - cur) * 0.08;

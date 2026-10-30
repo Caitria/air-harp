@@ -6,6 +6,8 @@ A webcam air harp: pluck particle strings on screen with your hands to make musi
 
 ## Screenshots
 
+The strings have four toggleable looks — **Particles** (the original particle strings), **Glowing Columns**, **Sparks**, and **Ribbons** — switchable mid-play from the "Strings look" control; switching changes only how the strings are drawn, never how they play.
+
 Strings mode — pluck individual strings. The badge at the top of the stage shows the clutch state ("Moving — silent · pinch to play"), the big readout is the last note played, and the two cards track each hand's job:
 
 ![Air Harp in strings mode: fifteen particle strings, three of them still vibrating from being plucked, with hand-status cards and the Strings/Chords, Major/Minor, scale and sound controls below](docs/screenshots/strings-mode.jpg)
