@@ -1,6 +1,6 @@
 # Air Harp
 
-A webcam air harp: pluck particle strings on screen with your hands to make music — one hand plays, the other hand bends the harmony between major and minor. Chord mode included.
+A webcam air harp: pluck particle strings on screen with your hands to make music — both hands pluck, and whichever hand isn't pinching bends the harmony between major and minor. Chord mode included.
 
 **Play it live: [caitriaoneill.com/air-harp](https://caitriaoneill.com/air-harp/)** — or open `index.html` in a browser (Chrome works best), allow camera access, and play. No build step, no server, nothing to install. Hand tracking runs in your browser on your own machine; video is not sent anywhere.
 
@@ -22,9 +22,9 @@ The harp has 15 particle strings, laid out left to right as scale degrees in C, 
 
 **The split that makes it playable: selecting is silent, playing takes a pinch.**
 
-- **Move (no pinch) — silent.** Your pluck hand's index fingertip selects: the string under it lights up, but passing over strings makes no sound. Your other fingers trigger nothing. Move your hand anywhere, get into position, take your time.
-- **Pinch — play.** Hold a thumb-to-index pinch and the pinch point becomes a pick. Sweep it across strings to pluck them; how fast you cross sets how loud. Release the pinch and you are silent again. A badge on stage always shows which state you are in: "Moving — silent" or "Pinching — playing".
-- **Harmony hand (the other hand, whole-hand shapes only).** Open palm = major, fist = minor — the strings retune when it flips. Pinch = sustain. Hand height = brightness.
+- **Move (no pinch) — silent.** Each hand's index fingertip selects: the string under it lights up, but passing over strings makes no sound. Your other fingers trigger nothing. Move your hand anywhere, get into position, take your time.
+- **Pinch — play.** Hold a thumb-to-index pinch and the pinch point becomes a pick. Sweep it across strings to pluck them; how fast you cross sets how loud. Release the pinch and you are silent again. A badge on stage always shows the state: "Moving — silent", one hand pinching, or both hands pinching.
+- **Harmony (whichever hand is not pinching, whole-hand shapes only).** Open palm = major, fist = minor — the strings retune when it flips; a pinching hand's shape is ignored while it plays, and the key holds when both hands pinch. Hand height = brightness. Sustain is a latch: hold an open palm still for about a second to toggle it.
 - **Chord mode.** Switch Play from Strings to Chords: every string is labelled with its chord (I, ii, iii, IV, V, vi, vii°) and plucking a string plays that full diatonic chord as a quick strum instead of a single note — in a major key the ii and iii chords come out minor and vii diminished, and flipping the harmony hand to minor rebuilds all the chords in the minor key.
 - **No camera handy:** mouse and touch follow the same rule — hover selects silently, a pressed drag plays. Keys 1–0 and Q–T play the strings directly.
 

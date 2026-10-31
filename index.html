@@ -100,6 +100,30 @@
       }
       #clutch-indicator.playing { border-color: #e8a33d; color: #ffe9bd; }
       #clutch-indicator.playing .clutch-dot { background: #e8a33d; border-color: #e8a33d; }
+      #sustain-indicator {
+        position: absolute; top: 12px; right: 12px; display: flex; align-items: center; gap: 8px;
+        background: rgba(10, 14, 22, 0.78); border: 1px solid rgba(255,255,255,.22);
+        border-radius: 999px; padding: 7px 13px; color: #dfe5ee; pointer-events: none;
+        font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600;
+        backdrop-filter: blur(3px);
+      }
+      #sustain-indicator .sus-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        border: 2px solid #aeb9c9; background: transparent; flex: none;
+      }
+      #sustain-indicator.on { border-color: #2dd4bf; color: #c9f7ef; }
+      #sustain-indicator.on .sus-dot { background: #2dd4bf; border-color: #2dd4bf; }
+      #sustain-indicator.holding { border-color: #e8a33d; color: #ffe9bd; }
+      #sustain-indicator.holding .sus-dot { background: transparent; border-color: #e8a33d; }
+      #clutch-indicator, #sustain-indicator { white-space: nowrap; }
+      @media (max-width: 640px) {
+        /* stack the two stage pills so neither can cover the other's text,
+           and let the clutch badge's longer two-hand wording wrap whole */
+        #clutch-indicator { max-width: calc(100% - 24px); white-space: normal; line-height: 1.35; }
+        /* on narrow stages the sustain pill stacks above the camera-preview
+           column at bottom-right, clear of the badge, cards and strings' labels */
+        #sustain-indicator { top: auto; bottom: 146px; right: 12px; }
+      }
       #note-flash {
         position: absolute; top: 14px; left: 0; right: 0; text-align: center;
         font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
@@ -171,7 +195,7 @@
       <header class="top">
         <div>
           <h1>Air Harp</h1>
-          <p class="tag">Fifteen strings of light. Pluck them with a hand in front of your webcam — or drag across them.</p>
+          <p class="tag">Fifteen strings of light. Pluck them with either hand — or both at once — in front of your webcam, or drag across them.</p>
         </div>
         <div class="chips" aria-label="Instrument status">
           <span class="chip"><span class="dot" id="cam-dot"></span><b id="cam-state">Camera off</b></span>
@@ -181,20 +205,21 @@
       </header>
 
       <div class="stage-shell">
-        <canvas id="stage" role="img" aria-label="Air Harp stage: fifteen vertical particle strings. Move across them to select silently; press and drag, or pinch thumb to index finger with the camera on, to pluck."></canvas>
-        <div id="clutch-indicator"><span class="clutch-dot"></span><span id="clutch-text">Moving — silent · pinch to play</span></div>
+        <canvas id="stage" role="img" aria-label="Air Harp stage: fifteen vertical particle strings. With the camera on, each hand selects silently with its index finger; pinch thumb to index finger on either hand, or on both at once, to pluck. Press and drag with a pointer also plucks."></canvas>
+        <div id="clutch-indicator"><span class="clutch-dot"></span><span id="clutch-text">Moving — silent · pinch either hand to play</span></div>
+        <div id="sustain-indicator"><span class="sus-dot"></span><span id="sustain-text">Sustain off</span></div>
         <div id="note-flash" aria-hidden="true"></div>
         <video id="cam-pip" playsinline muted aria-label="Camera preview"></video>
         <div class="hand-cards">
-          <div class="hand-card" id="card-pluck">
-            <div class="hc-role">Pluck hand · <span id="pluck-side-label">right</span></div>
-            <div class="hc-state" id="pluck-state">Not seen</div>
-            <div class="hc-sub" id="pluck-sub">Index finger selects — silent · pinch to play</div>
+          <div class="hand-card" id="card-left">
+            <div class="hc-role">Left hand · L</div>
+            <div class="hc-state" id="left-state">Not seen</div>
+            <div class="hc-sub" id="left-sub">Index selects — silent · pinch to pluck</div>
           </div>
-          <div class="hand-card" id="card-mod">
-            <div class="hc-role">Harmony hand · <span id="mod-side-label">left</span></div>
-            <div class="hc-state" id="mod-state">Not seen</div>
-            <div class="hc-sub" id="mod-sub">Open palm = major · fist = minor</div>
+          <div class="hand-card" id="card-right">
+            <div class="hc-role">Right hand · R</div>
+            <div class="hc-state" id="right-state">Not seen</div>
+            <div class="hc-sub" id="right-sub">Index selects — silent · pinch to pluck</div>
           </div>
         </div>
       </div>
@@ -202,7 +227,6 @@
       <div class="controls" role="group" aria-label="Instrument controls">
         <div class="ctl-group">
           <button id="btn-camera" class="primary" aria-pressed="false">Start camera</button>
-          <button id="btn-swap" title="Swap which hand plucks and which hand shapes the harmony">Swap hands</button>
         </div>
         <div class="ctl-group">
           <span class="ctl-label" id="lbl-play">Play</span>
@@ -253,12 +277,13 @@
           <h2>Playing with the camera</h2>
           <ul>
             <li>Sit about an arm's length back so <b>both hands fit the frame</b>, with light in front of you, not behind.</li>
-            <li><b>Move freely — it's silent.</b> With no pinch held, only your pluck hand's <b>index fingertip</b> selects: it pre-lights the string nearest it, but crossing strings makes <b>no sound</b>. Your other fingers never trigger anything, so you can travel across the whole harp to get into position without playing a note.</li>
-            <li><b>Pinch to play.</b> Hold a <b>thumb-to-index pinch</b> on the pluck hand and the pinch point becomes a pick (the amber puck on screen). While you pinch, sweeping that pick across a string plucks it — faster crossing = louder pluck. <b>Release the pinch and you're silent again</b> instantly, free to reposition.</li>
-            <li>The badge at the stage's top-left always shows which state you're in: <b>Moving — silent</b>, or <b>Pinching — playing</b>. A string has to be re-crossed to sound again — no machine-gun retriggering.</li>
-            <li><b>Harmony hand:</b> hold an <b>open palm for major</b>, make a <b>fist for minor</b>. The strings retune the moment the new shape settles. <b>Pinch</b> on this hand sustains — notes ring longer while you hold it — and raising or lowering it brightens or darkens the tone.</li>
-            <li><b>Chord mode</b> (Play toggle below): crossing a string with the pinch held plays the <b>whole chord</b> built on that string's degree instead of one note.</li>
-            <li><b>Mouse / touch:</b> moving without pressing is silent selection, exactly like the un-pinched hand; <b>press and drag</b> is the pinch — crossings fire while pressed.</li>
+            <li><b>Move freely — it's silent.</b> With no pinch held, <b>each hand's index fingertip</b> selects on its own: it pre-lights the string nearest it, but crossing strings makes <b>no sound</b>. Both hands' selections show at once, marked <b>L</b> and <b>R</b> so you can see which hand is aiming where. Your other fingers never trigger anything, so either hand can travel across the whole harp to get into position without playing a note.</li>
+            <li><b>Pinch to play — with either hand, or both.</b> Hold a <b>thumb-to-index pinch</b> on a hand and that hand's pinch point becomes its own pick (an amber puck marked L or R). While you pinch, sweeping that pick across a string plucks it — faster crossing = louder pluck. <b>Each hand has its own pick</b>, so both hands can pluck at the same time: two notes — or, in Chord mode, two chords — can sound in the same moment. <b>Release a hand's pinch and that hand is silent again</b> instantly, free to reposition, while the other hand keeps playing.</li>
+            <li>The badge at the stage's top-left always shows which state you're in: <b>Moving — silent</b>, <b>one hand pinching</b>, or <b>Both hands pinching — playing</b>. A string has to be re-crossed by the same pick to sound again — no machine-gun retriggering, and each pick keeps its own cooldown.</li>
+            <li><b>Harmony comes from whichever hand is not pinching.</b> On a free (non-pinching) hand, hold an <b>open palm for major</b> or make a <b>fist for minor</b>; the strings retune once the shape settles. A pinching hand is busy plucking, so its pose is <b>not</b> read for harmony — the last major/minor holds while it plays. If both hands are pinching, the key simply holds until a hand frees up. Raising or lowering a free hand brightens or darkens the tone; if both hands pinch, the brightness holds too.</li>
+            <li><b>Sustain is a latch now — pinch no longer sustains.</b> Hold an <b>open palm still for about 1.2 seconds</b> on a free hand to switch sustain on; hold a still open palm again to switch it off. The <b>Sustain indicator</b> on the stage shows the state, and counts the hold while you keep the palm still. Making a fist (minor) does <b>not</b> clear the latch.</li>
+            <li><b>Chord mode</b> (Play toggle below): crossing a string with a pinch held plays the <b>whole chord</b> built on that string's degree instead of one note — and each hand's pick triggers its own chord.</li>
+            <li><b>Mouse / touch:</b> moving without pressing is silent selection, exactly like an un-pinched hand; <b>press and drag</b> is a pinch — crossings fire while pressed. Two touch points pressed at once act as two picks.</li>
             <li><b>Strings look</b> (toggle in the controls): <b>Particles</b> — the original dotted particle strings, the default. <b>Glowing Columns</b> — each string becomes a soft beam of light with a glowing core and feathered edges that flares where you pluck it. <b>Sparks</b> — strings shrink to faint guide lines and each pluck bursts a spray of sparks from the pluck point. <b>Ribbons</b> — each string flows like a ribbon of light, and a pluck sends a bright pulse travelling along it. Switch any time, even mid-play: only the rendering changes — the strings, selection, pinch clutch, chords and sound stay exactly the same, and switching fires no notes.</li>
           </ul>
         </section>
@@ -270,7 +295,7 @@
         <section class="card">
           <h2>How the pluck is detected</h2>
           <p>Adapted from <a href="https://synthgesture.com/blog/how-gesture-synth-turns-hand-landmarks-into-music">Gesture Synth's engineering write-up</a>: a hit is a plucking point's <b>path segment crossing the string</b> — not just pointing at it — with velocity taken from crossing speed, an <b>80&nbsp;ms cooldown</b> per string, and a <b>~100&nbsp;ms pose-stability</b> rule before a hand shape commits, so chords and modes don't flicker.</p>
-          <p>The plucking point is gated by a <b>pinch clutch</b>: un-pinched, the index fingertip only selects and nothing it crosses can sound; pinched, the thumb–index midpoint is the one and only pick. The strings themselves are <b>fixed in place</b> — a pluck only sets a string vibrating around its home position, capped well inside the gap to its neighbours, so strings never drag, wander, or overlap.</p>
+          <p>Each hand's plucking point is gated by its own <b>pinch clutch</b>: un-pinched, that hand's index fingertip only selects and nothing it crosses can sound; pinched, its thumb–index midpoint becomes that hand's pick. The two picks are fully independent — separate crossing state, cooldowns, and re-arm — so both can fire in the same frame. While a hand pinches, its pose is ignored for harmony: major/minor and filter brightness are read from the non-pinching hand only, and hold their last values when both hands pinch. Sustain is separate from the pinch entirely: a still open palm held for ~1.2&nbsp;s toggles the sustain latch. The strings themselves are <b>fixed in place</b> — a pluck only sets a string vibrating around its home position, capped well inside the gap to its neighbours, so strings never drag, wander, or overlap.</p>
           <p>The string sound is a Karplus-Strong plucked-string model (the family behind Tone.js's <a href="https://tonejs.github.io/docs/r12/PluckSynth">PluckSynth</a>), generated note by note in your browser.</p>
         </section>
       </div>
@@ -311,8 +336,7 @@
       scaleType: "penta",       /* "penta" | "dia" */
       sound: "pluck",           /* "pluck" | "glass" */
       visual: "particles",      /* "particles" | "columns" | "sparks" | "ribbons" — rendering only */
-      sustain: false,
-      pluckSide: "Right",       /* anatomical label of the plucking hand */
+      sustain: false,           /* sustain latch: toggled by a still open palm held ~1.2 s */
       cameraOn: false,
       volume: 0.8
     };
@@ -590,12 +614,12 @@
       };
     }
 
-    var lastChordAt = 0;
     function triggerChord(s, yNorm, velocity, dirSign, force) {
-      var now = performance.now();
+      /* No global chord throttle: each pick fires its own chord, and the
+         per-string 45 ms guard in pluckString (s.lastHit) is what stops
+         one pick re-firing the same string — so two hands crossing two
+         different strings in the same frame both sound their chords. */
       exciteString(s, yNorm, velocity * 0.7, dirSign);
-      if (!force && now - lastChordAt < 150) return; /* a full sweep fires one chord, not fifteen */
-      lastChordAt = now;
       var chord = chordFor(s.midi);
       var notes = chord.notes.slice();
       if (dirSign < 0) notes.reverse(); /* strum direction follows crossing direction */
@@ -844,15 +868,22 @@
       }
 
       /* selection markers (SILENT): a hollow ring — this point can
-         pre-light strings but can never make one sound */
+         pre-light strings but can never make one sound. Hand points
+         carry an L / R tag so both hands' aim is readable at once. */
       selectors.forEach(function (pt) {
         ctx.beginPath(); ctx.arc(pt.x, pt.y, 9, 0, 6.2832);
         ctx.strokeStyle = "rgba(220,232,245,0.85)"; ctx.lineWidth = 1.8; ctx.stroke();
         ctx.beginPath(); ctx.arc(pt.x, pt.y, 2.2, 0, 6.2832);
         ctx.fillStyle = "rgba(220,232,245,0.75)"; ctx.fill();
+        if (pt.label) {
+          ctx.font = "700 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+          ctx.fillStyle = "rgba(226,236,248,0.95)";
+          ctx.fillText(pt.label, pt.x, pt.y - 14);
+        }
       });
       /* pick markers (PLAYING): a solid amber puck with a diamond core —
-         the one point whose crossings fire */
+         a point whose crossings fire. Each hand's pick carries its own
+         L / R tag. */
       trackers.forEach(function (tr) {
         ctx.beginPath(); ctx.arc(tr.x, tr.y, 13, 0, 6.2832);
         ctx.fillStyle = "rgba(232,163,61,0.22)"; ctx.fill();
@@ -864,6 +895,11 @@
         ctx.strokeStyle = "rgba(20,14,2,0.65)"; ctx.lineWidth = 1.2;
         ctx.strokeRect(-5.2, -5.2, 10.4, 10.4);
         ctx.restore();
+        if (tr.label) {
+          ctx.font = "700 11px 'IBM Plex Mono', monospace"; ctx.textAlign = "center";
+          ctx.fillStyle = "#ffd98a";
+          ctx.fillText(tr.label, tr.x, tr.y - 18);
+        }
       });
 
       /* floating note labels */
@@ -889,32 +925,49 @@
        A hit = the pick's path segment crossing the string's x, inside
        the string's span. Velocity from crossing speed; 80 ms cooldown
        per pick+string. (Gesture Synth's documented scheme.) */
-    var trackers = new Map(); /* id -> {x,y,px,py,cool:Map} — firing pick points only */
-    var selectors = new Map(); /* id -> {x,y} — silent selection points only */
-    function feedTracker(id, x, y) {
+    var trackers = new Map(); /* id -> {x,y,px,py,cool:Map,label} — firing pick points only; each pick id owns its cooldown map */
+    var selectors = new Map(); /* id -> {x,y,label} — silent selection points only */
+    function feedTracker(id, x, y, label) {
       var tr = trackers.get(id);
-      if (!tr) { tr = { x: x, y: y, px: x, py: y, cool: new Map() }; trackers.set(id, tr); }
+      if (!tr) { tr = { x: x, y: y, px: x, py: y, cool: new Map(), label: label || "" }; trackers.set(id, tr); }
+      if (label) tr.label = label;
       tr.px = tr.x; tr.py = tr.y; tr.x = x; tr.y = y;
       testCrossings(id, tr);
       updateNear(tr);
     }
     function dropTracker(id) { trackers.delete(id); }
-    function feedSelector(id, x, y) {
-      selectors.set(id, { x: x, y: y });
+    function feedSelector(id, x, y, label) {
+      selectors.set(id, { x: x, y: y, label: label || "" });
       updateNear({ x: x, y: y });
     }
     function dropSelector(id) { selectors.delete(id); }
 
-    /* Clutch state badge: silent selection vs pinching/pressed play. */
+    /* Clutch state badge: silent selection vs pinching/pressed play.
+       With two hands the badge reports the combined state; the per-hand
+       detail lives in the hand cards. handPinch holds the live pinch
+       state per hand label ("Left" / "Right"); updateClutchBadge is the
+       single writer of the badge so hand and pointer input never fight
+       over it. */
     var clutchEl = document.getElementById("clutch-indicator");
     var clutchTextEl = document.getElementById("clutch-text");
-    var clutchPlaying = null;
-    function setClutch(playing) {
-      if (clutchPlaying === playing) return;
-      clutchPlaying = playing;
+    var handPinch = { Left: false, Right: false };
+    var clutchTextShown = null;
+    function updateClutchBadge() {
+      var pinching = [];
+      if (handPinch.Left) pinching.push("Left");
+      if (handPinch.Right) pinching.push("Right");
+      var pointerPlaying = typeof activePointers !== "undefined" && activePointers.size > 0;
+      var text, playing;
+      if (pinching.length === 2) { text = "Both hands pinching — playing"; playing = true; }
+      else if (pinching.length === 1) { text = pinching[0] + " hand pinching — playing · other hand silent"; playing = true; }
+      else if (pointerPlaying) { text = "Pressing — playing"; playing = true; }
+      else { text = "Moving — silent · pinch either hand to play"; playing = false; }
+      if (clutchTextShown === text) return;
+      clutchTextShown = text;
       clutchEl.classList.toggle("playing", playing);
-      clutchTextEl.textContent = playing ? "Pinching — playing" : "Moving — silent · pinch to play";
+      clutchTextEl.textContent = text;
     }
+
     function updateNear(tr) {
       for (var i = 0; i < strings.length; i++) {
         if (Math.abs(tr.x - strings[i].x) < 30 && tr.y > stringTop() - 14 && tr.y < stringBottom() + 14) {
@@ -944,40 +997,46 @@
       }
     }
 
-    /* ---------------- Pointer & keyboard input ---------------- */
-    var pointerActive = false;
+    /* ---------------- Pointer & keyboard input ----------------
+       Each pressed pointer is its own pick (its own tracker id and
+       cooldown map), so two touch points can pluck two strings at
+       once; a single mouse behaves exactly as before. Un-pressed
+       movement is one shared silent selector. */
+    var activePointers = new Set();
+    function pointerId(id) { return "pointer-" + id; }
     function stagePos(evt) {
       var r = canvas.getBoundingClientRect();
       return { x: evt.clientX - r.left, y: evt.clientY - r.top };
     }
     canvas.addEventListener("pointerdown", function (e) {
       ensureAudio();
-      pointerActive = true;
-      canvas.setPointerCapture(e.pointerId);
+      activePointers.add(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
       var p = stagePos(e);
       /* Pressing is the clutch: the point stops being a silent selector
-         and becomes the pick. It starts fresh at the press point, so
+         and becomes a pick. It starts fresh at the press point, so
          the press itself fires nothing it happens to land on. */
       dropSelector("pointer");
-      dropTracker("pointer");
-      feedTracker("pointer", p.x, p.y);
-      if (!state.cameraOn) setClutch(true);
+      dropTracker(pointerId(e.pointerId));
+      feedTracker(pointerId(e.pointerId), p.x, p.y);
+      updateClutchBadge();
     });
     canvas.addEventListener("pointermove", function (e) {
       var p = stagePos(e);
       /* Un-pressed = silent selection only (pre-light, never a note);
-         pressed = the pick, crossings fire. Same clutch as the hand. */
-      if (pointerActive) feedTracker("pointer", p.x, p.y);
+         pressed = that pointer's pick, crossings fire. Same clutch
+         rule as the hands. */
+      if (activePointers.has(e.pointerId)) feedTracker(pointerId(e.pointerId), p.x, p.y);
       else feedSelector("pointer", p.x, p.y);
     });
-    function endPointer() {
-      pointerActive = false;
-      dropTracker("pointer");
-      if (!state.cameraOn) setClutch(false);
+    function endPointer(e) {
+      activePointers.delete(e.pointerId);
+      dropTracker(pointerId(e.pointerId));
+      updateClutchBadge();
     }
     canvas.addEventListener("pointerup", endPointer);
     canvas.addEventListener("pointercancel", endPointer);
-    canvas.addEventListener("pointerleave", function () { if (!pointerActive) dropSelector("pointer"); });
+    canvas.addEventListener("pointerleave", function () { if (activePointers.size === 0) dropSelector("pointer"); });
 
     window.addEventListener("keydown", function (e) {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -993,10 +1052,14 @@
     <script>
     "use strict";
     /* ---------------- Hand tracking & gesture logic ----------------
-       Pluck hand: fingertips feed the crossing detector.
-       Harmony hand: whole-hand shapes only — open palm = major,
-       fist = minor, pinch = sustain, hand height = filter brightness.
-       A new shape must hold ~120 ms before it commits (anti-flicker). */
+       BOTH hands feed the crossing detector through their own pinch
+       clutch (index = silent selector, pinch midpoint = that hand's
+       pick), so two-hand polyphony works.
+       Harmony is read only from a NON-pinching hand: open palm =
+       major, fist = minor, hand height = filter brightness; a pinching
+       hand's pose is ignored and the last committed values hold.
+       A new shape must hold ~120 ms before it commits (anti-flicker).
+       Sustain is a latch toggled by a still open palm held ~1.2 s. */
     var TIP_IDS = [4, 8, 12, 16, 20];
     var PIP_IDS = [6, 10, 14, 18];
     var hands = null, videoEl = document.getElementById("cam-pip");
@@ -1004,23 +1067,55 @@
 
     var gesture = {
       modeCandidate: null, modeSince: 0,
-      pinchCandidate: false, pinchSince: 0,
       filterTarget: 5200,
-      pluckSeen: false, modSeen: false,
-      pluckShape: "—", modShape: "—",
-      pluckPinching: false
+      sustainHold: null, /* {x, y, since, fired} — still-open-palm latch tracker */
+      sustainProgress: 0
+    };
+    /* Live per-hand view for the cards: label -> {seen, pinching, shape} */
+    var handView = {
+      Left: { seen: false, pinching: false, shape: "—" },
+      Right: { seen: false, pinching: false, shape: "—" }
     };
 
-    /* Pluck-hand pinch clutch, with a little hysteresis so the clutch
+    /* Per-hand pinch clutch, with a little hysteresis so the clutch
        doesn't chatter at the threshold: it engages when thumb tip and
        index tip come close (scaled to hand size, so it works near or
-       far from the camera) and releases at a slightly wider gap. */
-    function pluckHandPinching(lm) {
+       far from the camera) and releases at a slightly wider gap. Each
+       hand's state lives in handPinch[label], so the two clutches are
+       fully independent. */
+    function handPinching(lm, label) {
       var d = dist2d(lm[4], lm[8]);
       var handScale = dist2d(lm[0], lm[9]) || 0.15;
       var engage = Math.min(0.085, Math.max(0.045, handScale * 0.38));
       var release = engage * 1.3;
-      return gesture.pluckPinching ? d < release : d < engage;
+      return handPinch[label] ? d < release : d < engage;
+    }
+
+    /* ---- Sustain latch: toggled by a STILL open palm held ~1.2 s on a
+       non-pinching hand. Pinch no longer sustains; fist never clears it. */
+    var sustainEl = document.getElementById("sustain-indicator");
+    var sustainTextEl = document.getElementById("sustain-text");
+    var sustainShown = null;
+    function renderSustain() {
+      var mode, text;
+      if (gesture.sustainHold && !gesture.sustainHold.fired) {
+        mode = "holding";
+        text = "Palm hold · " + Math.round(gesture.sustainProgress * 100) + "%";
+      } else if (state.sustain) { mode = "on"; text = "Sustain on"; }
+      else { mode = "off"; text = "Sustain off"; }
+      if (sustainShown === mode + "|" + text) return;
+      sustainShown = mode + "|" + text;
+      sustainEl.classList.toggle("on", mode === "on");
+      sustainEl.classList.toggle("holding", mode === "holding");
+      sustainTextEl.textContent = text;
+    }
+    function setSustain(on) {
+      if (state.sustain === on) { renderSustain(); return; }
+      state.sustain = on;
+      renderSustain();
+      setStatus(on
+        ? "<b>Sustain on.</b> Notes ring long. Hold a still open palm for ~1.2 s again to switch it off."
+        : "<b>Sustain off.</b> Hold a still open palm for ~1.2 s to switch it back on.");
     }
 
     function dist2d(a, b) { var dx = a.x - b.x, dy = a.y - b.y; return Math.sqrt(dx * dx + dy * dy); }
@@ -1047,100 +1142,151 @@
       buildStrings();
       syncModeButtons();
       updateKeyChip();
-      if (fromHand) setStatus("Harmony hand set <b>" + (mode === "major" ? "major" : "minor") + "</b> — strings retuned to C " + mode + ".");
+      if (fromHand) setStatus("Free hand set <b>" + (mode === "major" ? "major" : "minor") + "</b> — strings retuned to C " + mode + ".");
     }
 
     function processHands(results) {
-      var seen = { pluck: false, mod: false };
+      var now = performance.now();
       var lists = results.multiHandLandmarks || [];
       var labels = results.multiHandedness || [];
+      var seenLabels = {};
+      var harmonyCands = [];   /* candidates from non-pinching hands only */
+      var filterFracs = [];    /* heights of non-pinching hands only */
+      var palmHoldHand = null; /* a non-pinching open palm, for the sustain latch */
+
       for (var h = 0; h < lists.length; h++) {
         var lm = lists[h];
         var label = (labels[h] && labels[h].label) || (h === 0 ? "Right" : "Left");
-        var isPluck = lists.length === 1 ? true : (label === state.pluckSide);
-        var role = isPluck ? "pluck" : "mod";
-        seen[role] = true;
-        if (isPluck) {
-          gesture.pluckShape = classifyShape(lm);
-          /* THE CLUTCH: only two landmarks of this hand are ever read —
-             thumb tip (4) and index tip (8). Middle, ring and pinky
-             fingers select nothing and trigger nothing, in any state.
-             - No pinch: the index fingertip is a silent SELECTOR.
-             - Pinch held: the thumb–index midpoint is the PICK, the
-               single point whose crossings fire. The pick starts fresh
-               at the pinch point, so engaging the clutch on top of a
-               string doesn't fire it — you must cross from there. */
-          var pinching = pluckHandPinching(lm);
-          gesture.pluckPinching = pinching;
-          if (pinching) {
-            dropSelector("hand-select");
-            var mx = (1 - (lm[4].x + lm[8].x) / 2) * stageW;
-            var my = ((lm[4].y + lm[8].y) / 2) * stageH;
-            feedTracker("pick", mx, my);
-          } else {
-            dropTracker("pick");
-            feedSelector("hand-select", (1 - lm[8].x) * stageW, lm[8].y * stageH);
-          }
-          setClutch(pinching);
+        if (label !== "Left" && label !== "Right") label = h === 0 ? "Right" : "Left";
+        if (seenLabels[label]) continue; /* never let one label drive two picks */
+        seenLabels[label] = true;
+        var short = label === "Left" ? "L" : "R";
+        var pickId = "pick-" + label, selectId = "select-" + label;
+        var shape = classifyShape(lm);
+
+        /* THE CLUTCH, per hand: only two landmarks of the plucking
+           action are read — thumb tip (4) and index tip (8). Middle,
+           ring and pinky fingers select nothing and trigger nothing.
+           - No pinch: this hand's index fingertip is a silent SELECTOR.
+           - Pinch held: its thumb–index midpoint is this hand's PICK,
+             an independent point whose crossings fire (its own tracker
+             id, so its own cooldown/re-arm state). The pick starts
+             fresh at the pinch point, so engaging the clutch on top of
+             a string doesn't fire it — you must cross from there. */
+        var pinching = handPinching(lm, label);
+        handPinch[label] = pinching;
+        handView[label].seen = true;
+        handView[label].pinching = pinching;
+        handView[label].shape = shape;
+        if (pinching) {
+          dropSelector(selectId);
+          var mx = (1 - (lm[4].x + lm[8].x) / 2) * stageW;
+          var my = ((lm[4].y + lm[8].y) / 2) * stageH;
+          feedTracker(pickId, mx, my, short);
+          /* A pinching hand is plucking: its harmony pose is NOT read.
+             Major/minor, brightness and the sustain hold all keep
+             their last values as far as this hand is concerned. */
         } else {
-          var shape = classifyShape(lm);
-          gesture.modShape = shape;
-          var now = performance.now();
-          /* mode from open / fist, with stability commit */
-          var cand = shape === "open" ? "major" : (shape === "fist" ? "minor" : null);
-          if (cand !== gesture.modeCandidate) { gesture.modeCandidate = cand; gesture.modeSince = now; }
-          if (cand && now - gesture.modeSince > 120) commitMode(cand, true);
-          /* pinch = sustain */
-          var pinching = shape === "pinch";
-          if (pinching !== gesture.pinchCandidate) { gesture.pinchCandidate = pinching; gesture.pinchSince = now; }
-          if (now - gesture.pinchSince > 100) state.sustain = pinching;
+          dropTracker(pickId);
+          feedSelector(selectId, (1 - lm[8].x) * stageW, lm[8].y * stageH, short);
+          /* Harmony from this free hand: open palm = major, fist = minor */
+          if (shape === "open") harmonyCands.push("major");
+          else if (shape === "fist") harmonyCands.push("minor");
           /* height -> filter brightness (wrist y: high hand = bright) */
           var wy = lm[0].y;
-          var frac = Math.max(0, Math.min(1, (0.88 - wy) / 0.68));
-          gesture.filterTarget = 500 * Math.pow(7500 / 500, frac);
-          /* the harmony hand's fingers are never selectors or picks —
-             nothing from this hand is fed to either point map */
+          filterFracs.push(Math.max(0, Math.min(1, (0.88 - wy) / 0.68)));
+          /* still-open-palm candidate for the sustain latch */
+          if (shape === "open" && !palmHoldHand) palmHoldHand = { label: label, x: lm[0].x, y: lm[0].y };
         }
       }
-      if (!seen.pluck) {
-        dropTracker("pick");
-        dropSelector("hand-select");
-        gesture.pluckPinching = false;
-        if (!pointerActive) setClutch(false);
+
+      /* Hands that left the frame lose their points and pinch state. */
+      ["Left", "Right"].forEach(function (label) {
+        if (seenLabels[label]) return;
+        dropTracker("pick-" + label);
+        dropSelector("select-" + label);
+        handPinch[label] = false;
+        handView[label].seen = false;
+        handView[label].pinching = false;
+        handView[label].shape = "—";
+      });
+
+      /* Harmony commit: only when the free hand(s) agree on one
+         candidate, under the existing ~120 ms stability rule. A
+         conflict between two free hands, or no candidate (both hands
+         pinching / shapes unreadable), holds the last committed mode. */
+      var cand = null;
+      if (harmonyCands.length && harmonyCands.every(function (c) { return c === harmonyCands[0]; })) cand = harmonyCands[0];
+      if (cand !== gesture.modeCandidate) { gesture.modeCandidate = cand; gesture.modeSince = now; }
+      if (cand && now - gesture.modeSince > 120) commitMode(cand, true);
+
+      /* Filter brightness follows the non-pinching hand(s); when both
+         hands pinch there is no free hand, so the last value holds. */
+      if (filterFracs.length) {
+        var avg = filterFracs.reduce(function (a, b) { return a + b; }, 0) / filterFracs.length;
+        gesture.filterTarget = 500 * Math.pow(7500 / 500, avg);
       }
-      gesture.pluckSeen = seen.pluck; gesture.modSeen = seen.mod;
+
+      /* Sustain latch: a non-pinching open palm held STILL ~1.2 s
+         toggles sustain. Movement past a small radius restarts the
+         hold; after a toggle the palm must move or close before it
+         can toggle again. */
+      if (palmHoldHand) {
+        var hold = gesture.sustainHold;
+        if (!hold) {
+          gesture.sustainHold = { x: palmHoldHand.x, y: palmHoldHand.y, since: now, fired: false };
+          gesture.sustainProgress = 0;
+        } else {
+          var moved = dist2d({ x: palmHoldHand.x, y: palmHoldHand.y }, hold);
+          if (moved > 0.03) {
+            gesture.sustainHold = { x: palmHoldHand.x, y: palmHoldHand.y, since: now, fired: false };
+            gesture.sustainProgress = 0;
+          } else if (!hold.fired) {
+            gesture.sustainProgress = Math.min(1, (now - hold.since) / 1200);
+            if (now - hold.since >= 1200) {
+              hold.fired = true;
+              gesture.sustainProgress = 0;
+              setSustain(!state.sustain);
+            }
+          }
+        }
+      } else {
+        gesture.sustainHold = null;
+        gesture.sustainProgress = 0;
+      }
+      renderSustain();
+
+      updateClutchBadge();
       updateHandCards();
     }
 
-    var pluckStateEl = document.getElementById("pluck-state");
-    var pluckSubEl = document.getElementById("pluck-sub");
-    var modStateEl = document.getElementById("mod-state");
-    var modSubEl = document.getElementById("mod-sub");
-    function shapeWords(shape, isMod) {
-      if (shape === "open") return isMod ? "Open palm — major" : "Open palm";
-      if (shape === "fist") return isMod ? "Fist — minor" : "Fist";
-      if (shape === "pinch") return isMod ? "Pinch — sustain" : "Pinch";
-      return "Tracking";
-    }
+    var handCardEls = {
+      Left: { state: document.getElementById("left-state"), sub: document.getElementById("left-sub") },
+      Right: { state: document.getElementById("right-state"), sub: document.getElementById("right-sub") }
+    };
     function updateHandCards() {
       if (!state.cameraOn) return;
-      if (gesture.pluckSeen && gesture.pluckPinching) {
-        pluckStateEl.textContent = "Pinching — playing";
-        pluckSubEl.textContent = "Sweep the pinch across a string · release to go silent";
-      } else if (gesture.pluckSeen) {
-        pluckStateEl.textContent = "Moving — silent";
-        pluckSubEl.textContent = "Index finger selects · pinch thumb to index to play";
-      } else {
-        pluckStateEl.textContent = "Not seen";
-        pluckSubEl.textContent = "Bring it into the frame";
-      }
-      if (gesture.modSeen) {
-        modStateEl.textContent = shapeWords(gesture.modShape, true);
-        modSubEl.textContent = state.sustain ? "Sustain held — notes ring long" : "Open palm = major · fist = minor";
-      } else {
-        modStateEl.textContent = "Not seen";
-        modSubEl.textContent = "Buttons below set the harmony instead";
-      }
+      ["Left", "Right"].forEach(function (label) {
+        var v = handView[label], els = handCardEls[label];
+        if (!v.seen) {
+          els.state.textContent = "Not seen";
+          els.sub.textContent = "Bring it into the frame";
+        } else if (v.pinching) {
+          els.state.textContent = "Pinching — playing";
+          els.sub.textContent = "Sweep this hand's pinch across a string · release to go silent · harmony holds";
+        } else if (v.shape === "open") {
+          els.state.textContent = "Open palm — major";
+          els.sub.textContent = gesture.sustainHold && !gesture.sustainHold.fired
+            ? "Keep this palm still — sustain toggles at ~1.2 s · pinch this hand to pluck instead"
+            : "Pinch this hand to pluck · fist = minor · hold palm still ~1.2 s = sustain on/off";
+        } else if (v.shape === "fist") {
+          els.state.textContent = "Fist — minor";
+          els.sub.textContent = "Pinch this hand to pluck · open palm = major";
+        } else {
+          els.state.textContent = "Moving — silent";
+          els.sub.textContent = "Index finger selects · pinch thumb to index to pluck · open palm = major, fist = minor";
+        }
+      });
     }
 
     /* ---------------- Camera ---------------- */
@@ -1201,7 +1347,7 @@
         .then(function () {
           state.cameraOn = true;
           setCamUI(true, "Camera on");
-          setStatus("<b>Camera on.</b> Move your pluck hand freely — it's silent while you get into position. <b>Pinch thumb to index finger on that hand to play</b>; release the pinch to move again. Harmony hand — open palm for major, fist for minor, pinch to sustain. Video is processed in this page only.");
+          setStatus("<b>Camera on.</b> Move either hand freely — it's silent while you get into position (L and R markers show each hand's aim). <b>Pinch thumb to index finger on either hand to play with that hand — pinch both to play with both.</b> Release a pinch to silence that hand. Whichever hand is <b>not</b> pinching shapes the harmony: open palm for major, fist for minor, and a still open palm held ~1.2 s toggles sustain. Video is processed in this page only.");
           pumpFrames();
         })
         .catch(function () {
@@ -1213,14 +1359,22 @@
       state.cameraOn = false;
       if (videoStream) { videoStream.getTracks().forEach(function (t) { t.stop(); }); videoStream = null; }
       videoEl.srcObject = null;
-      dropTracker("pick");
-      dropSelector("hand-select");
-      gesture.pluckPinching = false;
-      if (!pointerActive) setClutch(false);
+      ["Left", "Right"].forEach(function (label) {
+        dropTracker("pick-" + label);
+        dropSelector("select-" + label);
+        handPinch[label] = false;
+        handView[label].seen = false;
+        handView[label].pinching = false;
+        handView[label].shape = "—";
+      });
+      gesture.sustainHold = null;
+      gesture.sustainProgress = 0;
+      renderSustain();
+      updateClutchBadge();
       setCamUI(false, "Camera off");
-      pluckStateEl.textContent = "Not seen"; modStateEl.textContent = "Not seen";
-      pluckSubEl.textContent = "Index finger selects — silent · pinch to play";
-      modSubEl.textContent = "Open palm = major · fist = minor";
+      handCardEls.Left.state.textContent = "Not seen"; handCardEls.Right.state.textContent = "Not seen";
+      handCardEls.Left.sub.textContent = "Index finger selects — silent · pinch to pluck";
+      handCardEls.Right.sub.textContent = "Index finger selects — silent · pinch to pluck";
       setStatus("Camera off. Drag across the strings, or play keys <b>1</b>–<b>0</b> <b>Q</b> <b>W</b> <b>E</b> <b>R</b> <b>T</b>.");
     }
     btnCamera.addEventListener("click", function () { state.cameraOn ? stopCamera() : startCamera(); });
@@ -1274,13 +1428,6 @@
       state.volume = e.target.value / 100;
       if (masterGain) masterGain.gain.setTargetAtTime(state.volume, actx.currentTime, 0.03);
     });
-    document.getElementById("btn-swap").addEventListener("click", function () {
-      state.pluckSide = state.pluckSide === "Right" ? "Left" : "Right";
-      document.getElementById("pluck-side-label").textContent = state.pluckSide.toLowerCase();
-      document.getElementById("mod-side-label").textContent = state.pluckSide === "Right" ? "left" : "right";
-      setStatus("Hands swapped — the <b>" + state.pluckSide.toLowerCase() + " hand</b> now plucks, the other shapes the harmony.");
-    });
-
     /* Strings look toggle — rendering only. Switching fires no notes,
        retunes nothing, and leaves clutch, crossing detection, chord
        mode, harmony, labels and sound untouched. */
