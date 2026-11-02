@@ -188,6 +188,45 @@
       }
       footer.note { margin-top: 20px; font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
       footer.note a { color: var(--accent-ink); }
+
+      /* ---- MIDI / Bitwig bridge panel ---- */
+      .midi-panel {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 16px 18px 14px; margin-top: 14px;
+      }
+      .midi-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 4px; }
+      .midi-head h2 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -0.01em; }
+      .midi-head .midi-sub { font-size: 14px; color: var(--ink-soft); margin: 0; max-width: 62ch; line-height: 1.5; }
+      .midi-controls { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 12px; }
+      .midi-controls select {
+        font: inherit; font-size: 14px; font-weight: 600; color: var(--btn-ink);
+        background: var(--btn-bg); border: 1px solid var(--line); border-radius: 9px;
+        padding: 8px 10px; max-width: 100%;
+      }
+      .midi-controls select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .midi-controls select:disabled { opacity: .55; cursor: not-allowed; }
+      .midi-out-wrap { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
+      #midi-output { max-width: 340px; }
+      .midi-toggle[aria-pressed="true"] { background: var(--btn-on-bg); color: var(--btn-on-ink); border-color: var(--btn-on-bg); }
+      .midi-log {
+        list-style: none; margin: 12px 0 2px; padding: 9px 12px; max-height: 168px; overflow-y: auto;
+        background: var(--chip-bg); border: 1px solid var(--line); border-radius: 10px;
+        font-family: "IBM Plex Mono", monospace; font-size: 12.5px; line-height: 1.65; color: var(--ink-soft);
+      }
+      .midi-log li { overflow-wrap: anywhere; }
+      .midi-log li b { color: var(--ink); font-weight: 600; }
+      .midi-log .log-empty { font-style: italic; }
+      .midi-status { font-size: 13.5px; color: var(--ink-soft); margin: 10px 2px 0; min-height: 1.3em; line-height: 1.5; }
+      .midi-status b { color: var(--ink); }
+      .midi-status .ok { color: var(--teal); font-weight: 700; }
+      .midi-status .warn { color: var(--accent-ink); font-weight: 700; }
+      .midi-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+      @media (max-width: 960px) { .midi-steps { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 560px) { .midi-steps { grid-template-columns: 1fr; } #midi-output { max-width: 100%; width: 100%; } .midi-out-wrap { width: 100%; } }
+      .midi-step h3 { font-size: 13px; margin: 0 0 5px; font-family: "IBM Plex Mono", monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--accent-ink); }
+      .midi-step p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+      .midi-step b { color: var(--ink); }
+      .midi-step code { font-family: "IBM Plex Mono", monospace; font-size: 12px; background: var(--chip-bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; color: var(--ink); white-space: nowrap; }
     </style>
   </head>
   <body>
@@ -200,6 +239,7 @@
         <div class="chips" aria-label="Instrument status">
           <span class="chip"><span class="dot" id="cam-dot"></span><b id="cam-state">Camera off</b></span>
           <span class="chip">Key <b id="key-state">C major</b></span>
+          <span class="chip"><span class="dot" id="midi-dot"></span>MIDI <b id="midi-state">Off</b></span>
           <span class="chip"><span id="last-label">Last note</span> <b id="last-note">—</b></span>
         </div>
       </header>
@@ -271,6 +311,69 @@
         </div>
       </div>
       <p class="status-line" id="status-line">Sound starts on your first pluck or camera start. <b>No camera?</b> Move over the strings to select silently, press and drag to pluck, or play keys <kbd>1</kbd>–<kbd>9</kbd> <kbd>0</kbd> <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>T</kbd>.</p>
+
+      <section class="midi-panel" id="midi-panel" aria-labelledby="midi-heading">
+        <div class="midi-head">
+          <h2 id="midi-heading">MIDI out — play Bitwig with the harp</h2>
+          <p class="midi-sub">Every pluck can also leave this page as a real MIDI note. Send it to a virtual MIDI port, pick that port up inside Bitwig, and Bitwig can play — and re-route — any instrument, effect or hardware you like.</p>
+        </div>
+        <div class="midi-controls">
+          <button id="midi-enable" class="primary" aria-pressed="false">Enable MIDI</button>
+          <div class="midi-out-wrap">
+            <label class="ctl-label" for="midi-output">Output</label>
+            <select id="midi-output" disabled>
+              <option value="">Enable MIDI first…</option>
+            </select>
+            <button id="midi-refresh" disabled>Refresh</button>
+          </div>
+          <div class="ctl-group">
+            <label class="ctl-label" for="midi-channel">Channel</label>
+            <select id="midi-channel">
+              <option value="0" selected>1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option>
+              <option value="4">5</option><option value="5">6</option><option value="6">7</option><option value="7">8</option>
+              <option value="8">9</option><option value="9">10</option><option value="10">11</option><option value="11">12</option>
+              <option value="12">13</option><option value="13">14</option><option value="14">15</option><option value="15">16</option>
+            </select>
+          </div>
+          <button id="midi-send-notes" class="midi-toggle" aria-pressed="true">Send notes · On</button>
+          <button id="midi-send-cc" class="midi-toggle" aria-pressed="true">Hand height → CC 74 · On</button>
+          <div class="ctl-group">
+            <span class="ctl-label" id="lbl-dest">Sound goes to</span>
+            <div class="seg" role="group" aria-labelledby="lbl-dest">
+              <button class="seg-btn" id="dest-local" aria-pressed="true">Internal</button>
+              <button class="seg-btn" id="dest-both" aria-pressed="false">Both</button>
+              <button class="seg-btn" id="dest-midi" aria-pressed="false">MIDI only</button>
+            </div>
+          </div>
+          <div class="ctl-group">
+            <button id="midi-test" disabled>Test note C4</button>
+            <button id="midi-test-chord" disabled>Test chord</button>
+            <button id="midi-panic" disabled>Panic — all notes off</button>
+          </div>
+        </div>
+        <p class="midi-status" id="midi-status">MIDI is off. Web MIDI works in <b>Chrome or Edge on desktop</b>, on an https page or localhost. No notes leave the page until you enable it and choose an output.</p>
+        <ul class="midi-log" id="midi-log" aria-label="Recent MIDI events sent">
+          <li class="log-empty">Nothing sent yet — enable MIDI, pick an output, then pluck or press Test note.</li>
+        </ul>
+        <div class="midi-steps">
+          <div class="midi-step">
+            <h3>1 · Make a virtual port</h3>
+            <p><b>Mac:</b> open <b>Audio MIDI Setup → Window → Show MIDI Studio</b>, open the <b>IAC Driver</b>, tick “Device is online” and keep <b>Bus 1</b>. <b>Windows:</b> install <b>loopMIDI</b> and create a port named <code>Air Harp</code>. A hardware MIDI interface plugged in also works — it appears as an output directly.</p>
+          </div>
+          <div class="midi-step">
+            <h3>2 · Connect this page</h3>
+            <p>Click <b>Enable MIDI</b> above, allow the browser’s MIDI permission prompt, then choose that port in the <b>Output</b> list — <code>IAC Driver Bus 1</code> on Mac, <code>Air Harp</code> on Windows. Press <b>Test note C4</b>: nothing sounds yet — the note has only been <i>sent</i>.</p>
+          </div>
+          <div class="midi-step">
+            <h3>3 · Pick it up in Bitwig</h3>
+            <p>In Bitwig Studio: <b>Settings → Controllers</b>, add a <b>generic MIDI keyboard/controller</b> and set its input to the same virtual port. Then add an <b>Instrument track</b>, set its MIDI input to that controller/port, and <b>arm the track</b> (record-enable / monitor on).</p>
+          </div>
+          <div class="midi-step">
+            <h3>4 · Play &amp; re-route</h3>
+            <p>Pluck here — hands, mouse or keys — and Bitwig plays the armed track. From there it’s ordinary Bitwig routing: change the instrument, layer tracks, or send the track’s MIDI on to another device or out to hardware. Set <b>Sound goes to → MIDI only</b> to silence this page’s own synth so you hear Bitwig alone; the log under the controls shows every note and CC as it’s sent. In <b>Chord mode</b> each pick sends the whole chord as MIDI notes; the <b>sustain latch</b> sends pedal <b>CC 64</b>.</p>
+          </div>
+        </div>
+      </section>
 
       <div class="below">
         <section class="card">
@@ -443,7 +546,18 @@
       }
     }
     function playNote(midi, velocity) {
-      if (state.sound === "glass") playGlass(midi, velocity); else playPluck(midi, velocity);
+      /* MIDI bridge: when the destination is "MIDI only" and an output
+         is actually connected, the built-in synth stays silent so the
+         player hears only what Bitwig plays back. */
+      var silentLocal = typeof midiSuppressLocal === "function" && midiSuppressLocal();
+      if (!silentLocal) {
+        if (state.sound === "glass") playGlass(midi, velocity); else playPluck(midi, velocity);
+      }
+      /* Every note the harp plays — strings, chords, previews, keys —
+         is mirrored out as a MIDI note when an output is connected.
+         Guarded so the harp plays exactly as before when MIDI is off
+         or unavailable. */
+      if (typeof midiNoteOn === "function") midiNoteOn(midi, velocity);
     }
     </script>
     <script>
@@ -1113,6 +1227,8 @@
       if (state.sustain === on) { renderSustain(); return; }
       state.sustain = on;
       renderSustain();
+      /* MIDI bridge: the sustain latch is also the sustain pedal (CC 64). */
+      if (typeof midiSustain === "function") midiSustain(on);
       setStatus(on
         ? "<b>Sustain on.</b> Notes ring long. Hold a still open palm for ~1.2 s again to switch it off."
         : "<b>Sustain off.</b> Hold a still open palm for ~1.2 s to switch it back on.");
@@ -1341,6 +1457,12 @@
       navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: "user" }, audio: false })
         .then(function (stream) {
           videoStream = stream;
+          /* Camera lost mid-play (unplugged, permission revoked, track
+             ended): treat it as a camera stop, which panics MIDI so no
+             note is left ringing in the DAW. */
+          stream.getTracks().forEach(function (t) {
+            t.addEventListener("ended", function () { if (state.cameraOn) stopCamera(); });
+          });
           videoEl.srcObject = stream;
           return videoEl.play();
         })
@@ -1356,6 +1478,9 @@
         });
     }
     function stopCamera() {
+      /* Stuck-note safety: camera stopping must never strand notes
+         ringing in the DAW — panic the MIDI output first. */
+      if (typeof midiPanic === "function") midiPanic();
       state.cameraOn = false;
       if (videoStream) { videoStream.getTracks().forEach(function (t) { t.stop(); }); videoStream = null; }
       videoEl.srcObject = null;
@@ -1452,6 +1577,9 @@
     function frame(t) {
       stepPhysics();
       stepVisuals();
+      /* MIDI bridge: free-hand height rides out as CC 74 (throttled in
+         the MIDI block). Mirrors the same value that drives the filter. */
+      if (typeof midiBrightnessTick === "function") midiBrightnessTick(gesture.filterTarget);
       if (actx && filterNode) {
         var cur = filterNode.frequency.value;
         filterNode.frequency.value = cur + (gesture.filterTarget - cur) * 0.08;
@@ -1464,6 +1592,281 @@
     buildStrings();
     updateKeyChip();
     requestAnimationFrame(frame);
+    </script>
+    <script>
+    "use strict";
+    /* ============================================================
+       MIDI bridge — Web MIDI API (navigator.requestMIDIAccess).
+       The page becomes a MIDI controller: choose an output (a
+       virtual port such as macOS IAC Bus 1 or a Windows loopMIDI
+       port, or any hardware interface) and every harp note is sent
+       there as Note On / Note Off on the chosen channel. Bitwig
+       picks that same port up as a controller/track input and can
+       then route the notes anywhere. Nothing is sent until the
+       player clicks Enable MIDI and picks an output.
+       Sustain latch -> CC 64. Free-hand height -> CC 74 (optional).
+       ============================================================ */
+    var midiAccess = null;
+    var midiOut = null;
+    var midiActiveNotes = {}; /* "midi" -> timeout id that will send its Note Off */
+    var midiLastCC74 = -10, midiLastCC74At = 0; /* -10 so the first real value always clears the ≥2 change gate */
+
+    var midiEnableBtn = document.getElementById("midi-enable");
+    var midiOutputSel = document.getElementById("midi-output");
+    var midiChannelSel = document.getElementById("midi-channel");
+    var midiRefreshBtn = document.getElementById("midi-refresh");
+    var midiTestBtn = document.getElementById("midi-test");
+    var midiTestChordBtn = document.getElementById("midi-test-chord");
+    var midiPanicBtn = document.getElementById("midi-panic");
+    var midiSendNotesEl = document.getElementById("midi-send-notes");
+    var midiSendCCEl = document.getElementById("midi-send-cc");
+    var midiStatusEl = document.getElementById("midi-status");
+    var midiDotEl = document.getElementById("midi-dot");
+    var midiStateEl = document.getElementById("midi-state");
+    var midiLogEl = document.getElementById("midi-log");
+    var midiDest = "local"; /* "local" (Internal, the default) | "both" | "midi" — where the sound is heard */
+    var midiLastCC74LoggedAt = 0;
+    var midiLastLoggedOutput = null;
+
+    /* Scrolling log of what actually left the page (newest first,
+       capped at 10 lines) so the Bitwig pipe can be checked at a
+       glance: if it's in the log, it was sent. */
+    function midiStamp() {
+      var d = new Date();
+      function p(n, w) { var s = String(n); while (s.length < (w || 2)) s = "0" + s; return s; }
+      return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + p(d.getMilliseconds(), 3);
+    }
+    function midiLog(text) {
+      var empty = midiLogEl.querySelector(".log-empty");
+      if (empty) empty.remove();
+      var li = document.createElement("li");
+      li.innerHTML = "<b>" + midiStamp() + "</b>&nbsp; " + text;
+      midiLogEl.insertBefore(li, midiLogEl.firstChild);
+      while (midiLogEl.children.length > 10) midiLogEl.removeChild(midiLogEl.lastChild);
+    }
+    /* "MIDI only" silences the page's own synth — but only while an
+       output is really connected, so a failed connection never leaves
+       the player in silence with no explanation. */
+    function midiSuppressLocal() { return midiDest === "midi" && midiUsable(); }
+    var destBtns = {
+      local: document.getElementById("dest-local"),
+      both: document.getElementById("dest-both"),
+      midi: document.getElementById("dest-midi")
+    };
+    function setMidiDest(d) {
+      midiDest = d;
+      for (var k in destBtns) destBtns[k].setAttribute("aria-pressed", k === d ? "true" : "false");
+      if (d === "local") setMidiStatus("<b>Sound goes to Internal.</b> Plucks play on this page's synth and no MIDI is sent, even with an output connected. Switch to Both or MIDI only to route plucks to Bitwig.");
+      else if (d === "midi") setMidiStatus(midiUsable()
+        ? "<b>Sound goes to MIDI only.</b> This page's synth is silent — you hear only what Bitwig plays back."
+        : "<b>Sound goes to MIDI only</b> once an output is connected. Until then this page still sounds, so a failed connection never leaves you in silence.");
+      else setMidiStatus(midiUsable()
+        ? "<b>Sound goes to Both.</b> You'll hear the page's synth and Bitwig together — switch to MIDI only if the doubling bothers you."
+        : "<b>Sound goes to Both.</b> Enable MIDI and pick an output to start sending.");
+    }
+    destBtns.local.addEventListener("click", function () { setMidiDest("local"); });
+    destBtns.both.addEventListener("click", function () { setMidiDest("both"); });
+    destBtns.midi.addEventListener("click", function () { setMidiDest("midi"); });
+
+    function midiChannel() { return parseInt(midiChannelSel.value, 10) || 0; }
+    function midiOptOn(el) { return el.getAttribute("aria-pressed") === "true"; }
+    function wireMidiToggle(el, label) {
+      el.addEventListener("click", function () {
+        var on = !midiOptOn(el);
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+        el.textContent = label + (on ? " · On" : " · Off");
+      });
+    }
+    wireMidiToggle(midiSendNotesEl, "Send notes");
+    wireMidiToggle(midiSendCCEl, "Hand height → CC 74");
+    function setMidiStatus(html) { midiStatusEl.innerHTML = html; }
+    function setMidiChip(mode, label) {
+      midiStateEl.textContent = label;
+      midiDotEl.className = "dot" + (mode === "on" ? " on" : (mode === "warn" ? " warn" : ""));
+    }
+    function midiUsable() { return !!(midiAccess && midiOut); }
+
+    function refreshMidiButtons() {
+      var ok = midiUsable();
+      midiTestBtn.disabled = !ok;
+      midiTestChordBtn.disabled = !ok;
+      midiPanicBtn.disabled = !ok;
+      midiOutputSel.disabled = !midiAccess;
+      midiRefreshBtn.disabled = !midiAccess;
+    }
+
+    function refreshMidiOutputs(keepId) {
+      var prev = keepId || (midiOut ? midiOut.id : midiOutputSel.value);
+      var outputs = [];
+      if (midiAccess) midiAccess.outputs.forEach(function (o) { outputs.push(o); });
+      midiOutputSel.innerHTML = "";
+      if (!outputs.length) {
+        var opt0 = document.createElement("option");
+        opt0.value = ""; opt0.textContent = "No MIDI outputs found";
+        midiOutputSel.appendChild(opt0);
+        midiOut = null;
+        setMidiChip("warn", "No output");
+        setMidiStatus("<span class='warn'>No MIDI outputs found.</span> A browser page can't create its own MIDI port — it can only send to an existing one. <b>Mac:</b> Audio MIDI Setup → Window → Show MIDI Studio → IAC Driver → tick “Device is online” (Bus 1), then <b>reload this page</b> and pick <b>IAC Driver Bus 1</b>. <b>Windows:</b> create a port in loopMIDI, then reload. A plugged-in hardware MIDI interface should appear here on its own.");
+        refreshMidiButtons();
+        return;
+      }
+      outputs.forEach(function (o) {
+        var opt = document.createElement("option");
+        opt.value = o.id;
+        opt.textContent = o.name || "MIDI output";
+        midiOutputSel.appendChild(opt);
+      });
+      /* Prefer the port we had, then a likely virtual port (IAC /
+         loopMIDI / "Air Harp"), then the first output. */
+      var chosen = null;
+      outputs.forEach(function (o) { if (o.id === prev) chosen = o; });
+      if (!chosen) outputs.forEach(function (o) {
+        if (!chosen && /iac|loopmidi|air harp|virtual/i.test(o.name || "")) chosen = o;
+      });
+      if (!chosen) chosen = outputs[0];
+      midiOut = chosen;
+      midiOutputSel.value = chosen.id;
+      if (midiLastLoggedOutput !== chosen.id) {
+        midiLastLoggedOutput = chosen.id;
+        midiLog("Output → <b>" + (chosen.name || "MIDI output") + "</b> · ch " + (midiChannel() + 1));
+      }
+      setMidiChip("on", "Connected");
+      setMidiStatus("<span class='ok'>MIDI connected:</span> <b>" + (chosen.name || "MIDI output") + "</b>, channel <b>" + (midiChannel() + 1) + "</b>." + (midiDest === "local"
+        ? " Destination is <b>Internal</b>, so plucks still play only on this page — set <b>Sound goes to → Both</b> or <b>MIDI only</b> to route them to Bitwig. <b>Test note C4</b> checks the pipe either way."
+        : " In Bitwig, set an armed instrument track's input to this same port and pluck — or press <b>Test note C4</b> to check the pipe without playing."));
+      /* If sustain was already latched locally, tell the new output. */
+      if (state.sustain) midiSustain(true);
+      refreshMidiButtons();
+    }
+
+    function enableMidi() {
+      if (!navigator.requestMIDIAccess) {
+        setMidiChip("warn", "Unsupported");
+        setMidiStatus("<span class='warn'>This browser has no Web MIDI.</span> Use <b>Chrome or Edge on desktop</b> (Safari and Firefox do not expose MIDI outputs to pages). The harp itself still plays normally here.");
+        return;
+      }
+      setMidiStatus("Asking the browser for MIDI access… allow the permission prompt if one appears.");
+      navigator.requestMIDIAccess({ sysex: false }).then(function (access) {
+        midiAccess = access;
+        midiEnableBtn.textContent = "MIDI enabled";
+        midiEnableBtn.setAttribute("aria-pressed", "true");
+        access.onstatechange = function () { refreshMidiOutputs(); };
+        refreshMidiOutputs();
+      }).catch(function () {
+        setMidiChip("warn", "Blocked");
+        setMidiStatus("<span class='warn'>MIDI access was refused.</span> Allow MIDI for this site in the browser's site settings, then click Enable MIDI again. Nothing was sent.");
+      });
+    }
+    midiEnableBtn.addEventListener("click", function () {
+      if (midiAccess) { refreshMidiOutputs(); setMidiStatus("MIDI is already enabled — outputs refreshed. Current output: <b>" + (midiOut ? (midiOut.name || "MIDI output") : "none") + "</b>."); return; }
+      enableMidi();
+    });
+    midiRefreshBtn.addEventListener("click", function () { refreshMidiOutputs(); });
+    midiOutputSel.addEventListener("change", function () {
+      if (!midiAccess) return;
+      var picked = null;
+      midiAccess.outputs.forEach(function (o) { if (o.id === midiOutputSel.value) picked = o; });
+      midiPanic(); /* never strand held notes on the old output */
+      midiOut = picked;
+      if (midiOut) {
+        setMidiChip("on", "Connected");
+        setMidiStatus("<span class='ok'>MIDI output:</span> <b>" + (midiOut.name || "MIDI output") + "</b>, channel <b>" + (midiChannel() + 1) + "</b>. Make sure Bitwig is listening on this same port." + (midiDest === "local" ? " Destination is <b>Internal</b> — switch to Both or MIDI only to send plucks." : ""));
+        if (state.sustain) midiSustain(true);
+      }
+      refreshMidiButtons();
+    });
+    midiChannelSel.addEventListener("change", function () {
+      midiPanic();
+      if (midiOut) setMidiStatus("<span class='ok'>MIDI output:</span> <b>" + (midiOut.name || "MIDI output") + "</b>, now on channel <b>" + (midiChannel() + 1) + "</b>. Match this in Bitwig if your track is set to a single channel.");
+    });
+
+    function midiSend(bytes) { if (midiOut) { try { midiOut.send(bytes); } catch (e) {} } }
+
+    /* One harp note out. Velocity 1–127 from the same crossing-speed
+       measure the internal volume uses. Note Off follows after a
+       fixed ~1.5 s decay matched to the pluck (the sustain pedal
+       CC 64 carries the longer ring in the DAW when sustain is on).
+       The Note Off timer is keyed by pitch alone, so it survives
+       Strings/Chords mode switches. A retrigger of the same pitch
+       sends Note Off first. */
+    function midiNoteOn(midi, velocity, force) {
+      if (!midiUsable() || !midiOptOn(midiSendNotesEl)) return;
+      if (!force && midiDest === "local") return;
+      var ch = midiChannel();
+      var vel = Math.max(1, Math.min(127, Math.round(velocity * 127)));
+      /* Retriggering a pitch that is still ringing: close the old
+         note first so synths that dislike overlapping same-pitch
+         Note Ons never stick. */
+      if (midiActiveNotes[midi]) {
+        clearTimeout(midiActiveNotes[midi]);
+        delete midiActiveNotes[midi];
+        midiSend([0x80 + ch, midi & 0x7f, 0]);
+      }
+      midiSend([0x90 + ch, midi & 0x7f, vel]);
+      midiLog("Note On&nbsp; <b>" + noteName(midi) + "</b> · vel " + vel + " · ch " + (ch + 1));
+      midiActiveNotes[midi] = setTimeout(function () { midiNoteOff(midi); }, 1500);
+    }
+    function midiNoteOff(midi) {
+      if (midiActiveNotes[midi]) { clearTimeout(midiActiveNotes[midi]); delete midiActiveNotes[midi]; }
+      if (!midiOut) return;
+      midiSend([0x80 + midiChannel(), midi & 0x7f, 0]);
+      midiLog("Note Off <b>" + noteName(midi) + "</b> · ch " + (midiChannel() + 1));
+    }
+    function midiSustain(on) {
+      if (!midiUsable() || midiDest === "local") return;
+      midiSend([0xB0 + midiChannel(), 64, on ? 127 : 0]);
+      midiLog("CC 64 sustain " + (on ? "<b>on</b> (127)" : "off (0)") + " · ch " + (midiChannel() + 1));
+    }
+    /* Free-hand height -> CC 74 (filter cutoff in most synths / Bitwig
+       remote controls). Throttled per spec: sent only when the value
+       changes by ≥2, at most ~30 updates/sec. */
+    function midiBrightnessTick(filterTarget) {
+      if (!midiUsable() || !midiOptOn(midiSendCCEl) || midiDest === "local") return;
+      var frac = Math.max(0, Math.min(1, Math.log(filterTarget / 500) / Math.log(7500 / 500)));
+      var val = Math.round(frac * 127);
+      var now = performance.now();
+      if (Math.abs(val - midiLastCC74) < 2 || now - midiLastCC74At < 34) return;
+      midiLastCC74 = val; midiLastCC74At = now;
+      midiSend([0xB0 + midiChannel(), 74, val]);
+      /* The log samples CC 74 at ~1 s so a moving hand doesn't push
+         the notes out of the log. */
+      if (now - midiLastCC74LoggedAt > 1000) {
+        midiLastCC74LoggedAt = now;
+        midiLog("CC 74 hand height · <b>" + val + "</b> · ch " + (midiChannel() + 1));
+      }
+    }
+    function midiPanic() {
+      if (!midiOut) return;
+      for (var m in midiActiveNotes) {
+        clearTimeout(midiActiveNotes[m]);
+        midiSend([0x80 + midiChannel(), parseInt(m, 10) & 0x7f, 0]);
+      }
+      midiActiveNotes = {};
+      midiSend([0xB0 + midiChannel(), 123, 0]); /* all notes off */
+      midiSend([0xB0 + midiChannel(), 120, 0]); /* all sound off */
+      midiSend([0xB0 + midiChannel(), 64, 0]);  /* pedal up */
+      midiLog("All notes off · CC 123 / CC 120 · pedal up");
+    }
+    midiPanicBtn.addEventListener("click", function () {
+      midiPanic();
+      setMidiStatus("<b>All notes off</b> sent to <b>" + (midiOut ? (midiOut.name || "MIDI output") : "—") + "</b> (Note Offs + CC 123 / CC 120, pedal up).");
+    });
+    midiTestBtn.addEventListener("click", function () {
+      if (!midiUsable()) return;
+      midiNoteOn(60, 0.85, true);
+      setMidiStatus("<b>Test note sent:</b> C4, velocity 108, channel " + (midiChannel() + 1) + " → <b>" + (midiOut.name || "MIDI output") + "</b>. If Bitwig's track is armed on this port you should hear its instrument now. Silence usually means the track isn't armed or is listening to a different port/channel.");
+    });
+    midiTestChordBtn.addEventListener("click", function () {
+      if (!midiUsable()) return;
+      [60, 64, 67].forEach(function (m, i) { setTimeout(function () { midiNoteOn(m, 0.8, true); }, i * 30); });
+      setMidiStatus("<b>Test chord sent:</b> C major (C4–E4–G4) on channel " + (midiChannel() + 1) + " → <b>" + (midiOut.name || "MIDI output") + "</b>.");
+    });
+    window.addEventListener("beforeunload", function () { midiPanic(); });
+    /* Never leave notes ringing in Bitwig from a backgrounded or
+       defocused page: hidden tab and window blur both panic. */
+    document.addEventListener("visibilitychange", function () { if (document.hidden) midiPanic(); });
+    window.addEventListener("blur", function () { midiPanic(); });
+    refreshMidiButtons();
     </script>
   </body>
 </html>
